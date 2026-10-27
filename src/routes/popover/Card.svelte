@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api, type Card } from "$lib/api";
   import { formatAgo, formatDuration } from "$lib/format";
+  import StatusIcon from "$lib/StatusIcon.svelte";
 
   let { card, now }: { card: Card; now: Date } = $props();
 
@@ -8,104 +9,122 @@
   const time = $derived.by(() => {
     if (running && card.started_at) {
       const elapsed = (now.getTime() - new Date(card.started_at).getTime()) / 1000;
-      const expected = card.expected_secs ? ` / ~${formatDuration(card.expected_secs)}` : "";
-      return formatDuration(elapsed) + expected;
+      return formatDuration(elapsed);
     }
-    if (card.completed_at) {
-      return card.light === "red" ? `falló ${formatAgo(card.completed_at, now)}` : formatAgo(card.completed_at, now);
-    }
-    return "";
+    return card.completed_at ? formatAgo(card.completed_at, now) : "";
   });
   const sub = $derived(
     card.error ??
-      (card.failed_step ? `Falló en: ${card.failed_step}` : null) ??
+      (card.failed_step ? `Falló en ${card.failed_step}` : null) ??
       card.label ??
       (running ? card.step_label : null),
   );
+  const pct = $derived(card.progress !== null ? Math.round(card.progress * 100) : null);
 
   function open() {
     if (card.run_url) api.openUrl(card.run_url);
   }
 </script>
 
-<button class="card" class:clickable={!!card.run_url} onclick={open} title={card.run_url ?? ""}>
-  <div class="top">
-    <span class="dot {card.light}"></span>
-    <span class="name">{card.workflow_name} · {card.branch ?? "cualquiera"}</span>
-    <small>{time}</small>
+<button class="row {card.light}" disabled={!card.run_url} onclick={open} title={card.run_url ? "Abrir el run en GitHub" : ""}>
+  <StatusIcon light={card.light} />
+  <div class="body">
+    <div class="line">
+      <span class="name">{card.workflow_name}</span>
+      <span class="branch">{card.branch ?? "cualquier rama"}</span>
+      <span class="time">{time}</span>
+    </div>
+    {#if running && pct !== null}
+      <div class="progress" role="progressbar" aria-valuenow={pct} aria-valuemin="0" aria-valuemax="100">
+        <div style="width: {pct}%"></div>
+      </div>
+    {/if}
+    {#if sub || (running && card.expected_secs)}
+      <div class="sub" class:err={!!card.error || !!card.failed_step}>
+        <span class="text">{sub ?? ""}</span>
+        {#if running && card.expected_secs}<span class="eta">~{formatDuration(card.expected_secs)} en total</span>{/if}
+      </div>
+    {/if}
   </div>
-  {#if running && card.progress !== null}
-    <div class="pb"><div style="width: {Math.round(card.progress * 100)}%"></div></div>
-  {/if}
-  {#if sub}
-    <div class="sub" class:err={!!card.error}>{sub}</div>
-  {/if}
 </button>
 
 <style>
-  .card {
-    display: block;
+  .row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
     width: 100%;
     text-align: left;
-    background: var(--card);
-    color: inherit;
+    background: transparent;
     border: 0;
     border-radius: 8px;
-    padding: 8px 10px;
-    margin-bottom: 8px;
-    font: inherit;
-    cursor: default;
-  }
-  .card.clickable {
+    padding: 7px 8px;
     cursor: pointer;
   }
-  .card.clickable:hover {
-    background: var(--card-hover);
+  .row:disabled {
+    cursor: default;
   }
-  .top {
+  .row:hover:not(:disabled) {
+    background: var(--hover);
+  }
+  .row :global(.icon) {
+    margin-top: 1px;
+  }
+  .body {
+    flex: 1;
+    min-width: 0;
     display: flex;
-    gap: 8px;
-    align-items: center;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .line {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+    min-width: 0;
   }
   .name {
+    font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .top small {
-    color: var(--muted);
+  .time {
     margin-left: auto;
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  .dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex: none;
-  }
-  .gray { background: #8b949e; }
-  .yellow { background: #d29922; }
-  .green { background: #2ea043; }
-  .red { background: #f85149; }
-  .pb {
-    height: 6px;
+  .progress {
+    height: 4px;
     background: var(--track);
-    border-radius: 3px;
-    margin-top: 7px;
+    border-radius: 2px;
     overflow: hidden;
   }
-  .pb > div {
+  .progress > div {
     height: 100%;
-    background: #d29922;
-    border-radius: 3px;
+    background: var(--yellow);
+    border-radius: 2px;
     transition: width 0.6s ease;
   }
   .sub {
+    display: flex;
+    gap: 8px;
+    font-size: 11.5px;
     color: var(--muted);
-    font-size: 11px;
-    margin-top: 4px;
   }
-  .sub.err {
-    color: #f85149;
+  .sub .text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sub .eta {
+    margin-left: auto;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .sub.err .text {
+    color: var(--red);
   }
 </style>

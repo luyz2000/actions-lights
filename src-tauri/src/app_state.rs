@@ -1,4 +1,4 @@
-use crate::auth::{self, KeyringStore};
+use crate::auth::{self, KeyringStore, SecretStore};
 use crate::github::{GithubApi, HttpClient};
 use crate::model::{AuthStatus, Config, DashboardState, TokenSource};
 use std::path::PathBuf;
@@ -9,7 +9,8 @@ use tokio::sync::Notify;
 pub struct AppCtx {
     pub cfg: RwLock<Config>,
     pub api: Arc<HttpClient>,
-    pub store: KeyringStore,
+    pub manual: KeyringStore,
+    pub oauth: KeyringStore,
     pub dashboard: RwLock<DashboardState>,
     pub auth: RwLock<AuthStatus>,
     /// Wakes the poller immediately ("Actualizar ahora", config or token changed).
@@ -23,16 +24,24 @@ fn gh_token() -> Option<String> {
 }
 
 impl AppCtx {
-    /// Re-resolves the token (manual > gh > none), pushes it into the client and looks up
+    /// Re-resolves the token (gh > manual > OAuth), pushes it into the client and looks up
     /// the login. Returns the new status.
     pub async fn refresh_auth(&self) -> AuthStatus {
-        let (token, source) = auth::resolve(&self.store, &gh_token);
+        let gh = gh_token();
+        let (token, source) = auth::resolve(&self.manual, &self.oauth, &|| gh.clone());
         self.api.set_token(token);
         let login = match source {
             TokenSource::None => None,
             _ => self.api.me().await.ok(),
         };
-        let status = AuthStatus { source, login };
+        let status = AuthStatus {
+            source,
+            login,
+            gh: gh.is_some(),
+            manual: self.manual.get().is_some(),
+            oauth: self.oauth.get().is_some(),
+            oauth_available: crate::oauth::client_id().is_some(),
+        };
         *self.auth.write().unwrap() = status.clone();
         status
     }

@@ -1,0 +1,156 @@
+/* Shared design tokens; follows the system appearance like native macOS UI. */
+:root {
+  /* Native menu-bar utility: system UI face, monospace for git refs, blue-tinted neutrals. */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Ubuntu, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --bg: #f4f5f8;
+  --surface: #ffffff;
+  --surface-2: #eceef3;
+  --hover: rgba(0, 0, 0, 0.05);
+  --selected: rgba(10, 132, 255, 0.12);
+  --border: rgba(0, 0, 0, 0.1);
+  --fg: #1b1d22;
+  --muted: #6a6f7b;
+  --accent: #0a84ff;
+  --accent-fg: #ffffff;
+  --green: #2ea043;
+  --yellow: #d29922;
+  --red: #e5484d;
+  --gray: #8b949e;
+  --track: rgba(0, 0, 0, 0.08);
+  --warn-bg: #fff4d6;
+  --warn-fg: #7a5200;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1d21;
+    --surface: #26282d;
+    --surface-2: #2f3137;
+    --hover: rgba(255, 255, 255, 0.06);
+    --selected: rgba(10, 132, 255, 0.22);
+    --border: rgba(255, 255, 255, 0.1);
+    --fg: #eef0f4;
+    --muted: #9399a6;
+    --track: rgba(255, 255, 255, 0.1);
+    --warn-bg: #3d2e0a;
+    --warn-fg: #ffd38a;
+    --shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+  }
+}
+
+html,
+body {
+  margin: 0;
+  font: 13px/1.35 var(--font);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+.btn {
+  border: 0.5px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-fg);
+}
+.btn.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--accent);
+}
+
+.field {
+  box-sizing: border-box;
+  border: 0.5px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font: inherit;
+  outline: none;
+}
+.field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* iOS/macOS-style switch on a checkbox */
+.switch {
+  appearance: none;
+  width: 32px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--track);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex: none;
+  margin: 0;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s;
+}
+.switch:checked {
+  background: var(--green);
+}
+.switch:checked::after {
+  transform: translateX(14px);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.branch {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

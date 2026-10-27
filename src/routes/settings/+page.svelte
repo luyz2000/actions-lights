@@ -1,11 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
+  import "$lib/theme.css";
   import { api, type AuthStatus, type Config, type Repo, type WatchedWorkflow, type Workflow } from "$lib/api";
   import Account from "./Account.svelte";
   import RepoList from "./RepoList.svelte";
   import WorkflowList from "./WorkflowList.svelte";
 
+  type Section = "repos" | "account" | "general";
+
+  let section = $state<Section>("repos");
   let cfg = $state<Config>({ watched: [], autostart: true });
   let auth = $state<AuthStatus | null>(null);
   let repos = $state<Repo[]>([]);
@@ -15,9 +19,13 @@
   let workflows = $state<Record<string, Workflow[]>>({});
   let wfLoading = $state(false);
   let wfError = $state<string | null>(null);
-  let status = $state<string | null>(null);
+  let saved = $state<"ok" | string | null>(null);
 
-  const watchedRepos = $derived(new Set(cfg.watched.map((w) => w.repo)));
+  const watchedRepos = $derived.by(() => {
+    const m = new Map<string, number>();
+    for (const w of cfg.watched) m.set(w.repo, (m.get(w.repo) ?? 0) + 1);
+    return m;
+  });
 
   async function loadRepos() {
     reposLoading = true;
@@ -26,16 +34,20 @@
     try {
       list = await api.listRepos();
     } catch (e) {
-      reposError = auth?.source === "none" ? "Sin token solo puedes añadir repos públicos abajo." : String(e);
+      reposError =
+        auth?.source === "none"
+          ? "Sin cuenta conectada no podemos listar tus repos. Conecta una en Cuenta o añade un repo público abajo."
+          : String(e);
     }
     // Watched repos that the listing doesn't include (e.g. public repos of others).
-    for (const full of new Set(cfg.watched.map((w) => w.repo))) {
+    for (const full of watchedRepos.keys()) {
       if (!list.some((r) => r.full_name === full)) {
         list.push(await api.getRepo(full).catch(() => ({ full_name: full, private: false, default_branch: "main" })));
       }
     }
     repos = list;
     reposLoading = false;
+    if (!selected && list.length) select(list.find((r) => watchedRepos.has(r.full_name)) ?? list[0]);
   }
 
   async function select(repo: Repo) {
@@ -52,9 +64,9 @@
     }
   }
 
-  async function addPublic(full: string): Promise<string | null> {
+  async function addRepo(load: () => Promise<Repo>): Promise<string | null> {
     try {
-      const repo = await api.getRepo(full);
+      const repo = await load();
       if (!repos.some((r) => r.full_name === repo.full_name)) repos = [repo, ...repos];
       await select(repo);
       return null;
@@ -71,18 +83,20 @@
     save();
   }
 
+  // Every change is saved right away; there is no "Guardar" step to forget.
   async function save() {
     try {
       await api.saveConfig($state.snapshot(cfg));
-      status = "Guardado automáticamente ✓";
+      saved = "ok";
     } catch (e) {
-      status = `No se pudo guardar: ${e}`;
+      saved = `No se pudo guardar: ${e}`;
     }
   }
 
   async function onAuth(a: AuthStatus) {
     auth = a;
     workflows = {};
+    selected = null;
     await loadRepos();
   }
 
@@ -97,6 +111,7 @@
     Promise.all([api.getConfig(), api.authStatus()]).then(async ([c, a]) => {
       cfg = c;
       auth = a;
+      if (a.source === "none" && c.watched.length === 0) section = "account";
       await loadRepos();
     });
     const unlisten = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
@@ -106,129 +121,259 @@
       unlisten.then((f) => f());
     };
   });
+
+  const NAV: { id: Section; label: string; icon: string }[] = [
+    { id: "repos", label: "Repos y workflows", icon: "M2 3.5h12M2 8h12M2 12.5h7" },
+    { id: "account", label: "Cuenta", icon: "M8 8a2.8 2.8 0 1 0 0-5.6A2.8 2.8 0 0 0 8 8zm-5 5.6c.6-2.4 2.6-3.8 5-3.8s4.4 1.4 5 3.8" },
+    { id: "general", label: "General", icon: "M3 4.5h10M3 11.5h10M6 2.8v3.4M10 9.8v3.4" },
+  ];
 </script>
 
-<main>
-  <section class="cols">
-    <div class="left">
-      <RepoList
-        {repos}
-        selected={selected?.full_name ?? null}
-        {watchedRepos}
-        loading={reposLoading}
-        error={reposError}
-        onselect={select}
-        onaddpublic={addPublic}
-      />
+<div class="window">
+  <nav>
+    <div class="brand">
+      <span class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      Actions Lights
     </div>
-    <div class="right">
-      {#if selected}
-        <WorkflowList
-          repo={selected}
-          workflows={workflows[selected.full_name] ?? []}
-          watched={cfg.watched}
-          loading={wfLoading}
-          error={wfError}
-          onchange={(id, entry) => changeWatched(selected!.full_name, id, entry)}
-        />
-      {:else}
-        <p class="muted hint">Elige un repo a la izquierda para ver sus workflows.</p>
-      {/if}
+    {#each NAV as item (item.id)}
+      <button class="nav-item" class:active={section === item.id} onclick={() => (section = item.id)}>
+        <svg width="15" height="15" viewBox="0 0 16 16"><path d={item.icon} fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+        <span>{item.label}</span>
+        {#if item.id === "repos" && cfg.watched.length}<span class="badge">{cfg.watched.length}</span>{/if}
+        {#if item.id === "account" && auth?.source === "none"}<span class="dot-warn" title="Sin cuenta"></span>{/if}
+      </button>
+    {/each}
+    <div class="nav-foot muted">
+      {#if saved === "ok"}Cambios guardados{:else if saved}<span class="error">{saved}</span>{/if}
     </div>
-  </section>
+  </nav>
 
-  <section class="bottom">
-    <Account {auth} onauth={onAuth} />
-    <div class="actions">
-      <label><input type="checkbox" bind:checked={cfg.autostart} onchange={save} /> Abrir al iniciar sesión</label>
-      <span class="muted">{cfg.watched.length} workflow(s) vigilados</span>
-      {#if status}<span class="status">{status}</span>{/if}
-      <button class="primary" onclick={loadRepos}>Recargar repos</button>
-    </div>
-  </section>
-</main>
+  <main>
+    {#if section === "repos"}
+      <div class="repos">
+        <header class="page-head">
+          <h1>Repos y workflows</h1>
+          <p class="muted">Activa los workflows que quieres ver en la barra. Normalmente, el deploy de tu rama de release.</p>
+        </header>
+        <div class="cols">
+          <div class="left">
+            <RepoList
+              {repos}
+              selected={selected?.full_name ?? null}
+              {watchedRepos}
+              loading={reposLoading}
+              error={reposError}
+              onselect={select}
+              onaddpublic={(full) => addRepo(() => api.getRepo(full))}
+              onaddfolder={(path) => addRepo(() => api.repoFromFolder(path))}
+              onreload={loadRepos}
+            />
+          </div>
+          <div class="right">
+            {#if selected}
+              <WorkflowList
+                repo={selected}
+                workflows={workflows[selected.full_name] ?? []}
+                watched={cfg.watched}
+                loading={wfLoading}
+                error={wfError}
+                onchange={(id, entry) => changeWatched(selected!.full_name, id, entry)}
+              />
+            {:else}
+              <p class="muted hint">Elige un repo para ver sus workflows.</p>
+            {/if}
+          </div>
+        </div>
+      </div>
+    {:else if section === "account"}
+      <div class="scroll"><Account {auth} onauth={onAuth} /></div>
+    {:else}
+      <div class="scroll general">
+        <header class="page-head">
+          <h1>General</h1>
+        </header>
+        <div class="group">
+          <label class="setting" for="autostart">
+            <div>
+              <div class="label">Abrir al iniciar sesión</div>
+              <div class="muted small">La app arranca sola y vive en la barra de menús.</div>
+            </div>
+            <input id="autostart" class="switch" type="checkbox" bind:checked={cfg.autostart} onchange={save} />
+          </label>
+          <div class="setting">
+            <div>
+              <div class="label">Frecuencia de consulta</div>
+              <div class="muted small">Cada 15 s si algo está corriendo, cada 60 s en reposo y cada 5 min sin cuenta. Se espacia sola si el límite de la API baja.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
+  </main>
+</div>
 
 <style>
+  :global(html),
   :global(body) {
-    margin: 0;
+    height: 100%;
+    background: var(--bg);
   }
-  main {
-    --bg: #ffffff;
-    --fg: #1f2328;
-    --muted: #656d76;
-    --border: #d0d7de;
-    --input: #ffffff;
-    --hover: #f3f4f6;
-    --selected: #e7f0ff;
-    --accent: #0969da;
-    box-sizing: border-box;
-    height: 100vh;
+  .window {
+    height: 100%;
+    display: flex;
+  }
+  nav {
+    width: 200px;
+    flex: none;
     display: flex;
     flex-direction: column;
-    background: var(--bg);
-    color: var(--fg);
-    font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, sans-serif;
+    gap: 2px;
+    padding: 14px 10px;
+    border-right: 0.5px solid var(--border);
+    background: var(--surface-2);
+    box-sizing: border-box;
   }
-  @media (prefers-color-scheme: dark) {
-    main {
-      --bg: #1e1e22;
-      --fg: #e6e6e6;
-      --muted: #9aa0a6;
-      --border: #3a3a42;
-      --input: #2b2b31;
-      --hover: #2b2b31;
-      --selected: #23324d;
-      --accent: #4c8dff;
-    }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    padding: 2px 8px 14px;
+  }
+  .lights {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 5px;
+    background: var(--fg);
+  }
+  .lights i {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+  }
+  .lights .r { background: var(--red); }
+  .lights .y { background: var(--yellow); }
+  .lights .g { background: var(--green); }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    color: var(--fg);
+  }
+  .nav-item svg {
+    color: var(--muted);
+  }
+  .nav-item:hover {
+    background: var(--hover);
+  }
+  .nav-item.active {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+  .nav-item.active svg {
+    color: var(--accent-fg);
+  }
+  .badge {
+    margin-left: auto;
+    font-size: 11px;
+    padding: 0 6px;
+    border-radius: 8px;
+    background: var(--hover);
+    font-variant-numeric: tabular-nums;
+  }
+  .dot-warn {
+    margin-left: auto;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--yellow);
+  }
+  .nav-foot {
+    margin-top: auto;
+    font-size: 11px;
+    padding: 0 8px;
+  }
+  main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .page-head h1 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .page-head p {
+    margin: 2px 0 0;
+    font-size: 12px;
+  }
+  .repos {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 18px;
   }
   .cols {
     flex: 1;
-    display: flex;
     min-height: 0;
+    display: flex;
+    gap: 14px;
   }
   .left {
-    width: 42%;
-    padding: 12px;
-    border-right: 1px solid var(--border);
-    box-sizing: border-box;
+    width: 230px;
+    flex: none;
   }
   .right {
     flex: 1;
-    padding: 12px;
     min-width: 0;
   }
-  .bottom {
-    border-top: 1px solid var(--border);
-    padding: 10px 12px;
+  .scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 18px;
+  }
+  .general {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-  }
-  .actions {
-    display: flex;
     gap: 14px;
+  }
+  .group {
+    background: var(--surface);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+  .setting {
+    display: flex;
     align-items: center;
+    gap: 16px;
+    justify-content: space-between;
+    padding: 12px 14px;
   }
-  .actions .primary {
-    margin-left: auto;
+  .setting + .setting {
+    border-top: 0.5px solid var(--border);
   }
-  .primary {
-    background: var(--accent);
-    color: white;
-    border: 0;
-    border-radius: 6px;
-    padding: 6px 14px;
-    font: inherit;
-    cursor: pointer;
+  .label {
+    font-weight: 500;
   }
-  .muted {
-    color: var(--muted);
+  .small {
+    font-size: 12px;
   }
   .hint {
-    margin-top: 40px;
+    margin-top: 60px;
     text-align: center;
   }
-  .status {
-    color: #1a7f37;
+  .error {
+    color: var(--red);
   }
 </style>

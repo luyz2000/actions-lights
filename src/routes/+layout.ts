@@ -5,3 +5,12 @@
 export const ssr = false;
 
 export const prerender = true;
+
+import { dev } from "$app/environment";
+
+// In a plain browser during `npm run dev`, preview the UI against a fake backend.
+export const load = async () => {
+  if (dev && typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)) {
+    (await import("$lib/mock")).install();
+  }
+};

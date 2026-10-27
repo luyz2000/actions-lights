@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use std::process::Command;
 
 const SERVICE: &str = "actions-lights";
-const ACCOUNT: &str = "github-token";
+pub const MANUAL_ACCOUNT: &str = "github-token";
+pub const OAUTH_ACCOUNT: &str = "github-oauth-token";
 
 pub trait SecretStore {
     fn get(&self) -> Option<String>;
@@ -11,24 +12,26 @@ pub trait SecretStore {
     fn clear(&self) -> Result<(), String>;
 }
 
-/// OS keychain (Keychain / Credential Manager / Secret Service).
-pub struct KeyringStore;
+/// OS keychain (Keychain / Credential Manager / Secret Service), one entry per account.
+pub struct KeyringStore {
+    pub account: &'static str,
+}
 
 impl KeyringStore {
-    fn entry() -> Result<keyring::Entry, String> {
-        keyring::Entry::new(SERVICE, ACCOUNT).map_err(|e| e.to_string())
+    fn entry(&self) -> Result<keyring::Entry, String> {
+        keyring::Entry::new(SERVICE, self.account).map_err(|e| e.to_string())
     }
 }
 
 impl SecretStore for KeyringStore {
     fn get(&self) -> Option<String> {
-        Self::entry().ok()?.get_password().ok().filter(|t| !t.is_empty())
+        self.entry().ok()?.get_password().ok().filter(|t| !t.is_empty())
     }
     fn set(&self, token: &str) -> Result<(), String> {
-        Self::entry()?.set_password(token).map_err(|e| e.to_string())
+        self.entry()?.set_password(token).map_err(|e| e.to_string())
     }
     fn clear(&self) -> Result<(), String> {
-        match Self::entry()?.delete_credential() {
+        match self.entry()?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(e.to_string()),
         }
@@ -61,13 +64,21 @@ pub fn gh_token(candidates: &[PathBuf]) -> Option<String> {
     (!token.is_empty()).then_some(token)
 }
 
-/// A manually pasted token is an explicit override, so it wins over the gh session.
-pub fn resolve(store: &dyn SecretStore, gh: &dyn Fn() -> Option<String>) -> (Option<String>, TokenSource) {
-    if let Some(t) = store.get() {
+/// Detection order: gh CLI session, then a pasted token, then the "Iniciar sesión con
+/// GitHub" (OAuth device flow) token.
+pub fn resolve(
+    manual: &dyn SecretStore,
+    oauth: &dyn SecretStore,
+    gh: &dyn Fn() -> Option<String>,
+) -> (Option<String>, TokenSource) {
+    if let Some(t) = gh() {
+        return (Some(t), TokenSource::Gh);
+    }
+    if let Some(t) = manual.get() {
         return (Some(t), TokenSource::Manual);
     }
-    match gh() {
-        Some(t) => (Some(t), TokenSource::Gh),
+    match oauth.get() {
+        Some(t) => (Some(t), TokenSource::Oauth),
         None => (None, TokenSource::None),
     }
 }
@@ -98,20 +109,26 @@ mod tests {
     }
 
     #[test]
-    fn manual_wins_over_gh() {
-        let r = resolve(&store(Some("m")), &|| Some("g".into()));
-        assert_eq!(r, (Some("m".into()), TokenSource::Manual));
-    }
-
-    #[test]
-    fn gh_when_no_manual() {
-        let r = resolve(&store(None), &|| Some("g".into()));
+    fn gh_wins_over_everything() {
+        let r = resolve(&store(Some("m")), &store(Some("o")), &|| Some("g".into()));
         assert_eq!(r, (Some("g".into()), TokenSource::Gh));
     }
 
     #[test]
+    fn manual_when_no_gh() {
+        let r = resolve(&store(Some("m")), &store(Some("o")), &|| None);
+        assert_eq!(r, (Some("m".into()), TokenSource::Manual));
+    }
+
+    #[test]
+    fn oauth_when_no_gh_nor_manual() {
+        let r = resolve(&store(None), &store(Some("o")), &|| None);
+        assert_eq!(r, (Some("o".into()), TokenSource::Oauth));
+    }
+
+    #[test]
     fn none_when_nothing() {
-        assert_eq!(resolve(&store(None), &|| None), (None, TokenSource::None));
+        assert_eq!(resolve(&store(None), &store(None), &|| None), (None, TokenSource::None));
     }
 
     #[test]

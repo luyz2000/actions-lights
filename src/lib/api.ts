@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export type Light = "gray" | "yellow" | "green" | "red";
-export type TokenSource = "manual" | "gh" | "none";
+export type TokenSource = "gh" | "manual" | "oauth" | "none";
 
 export interface Card {
   key: string;
@@ -29,6 +29,18 @@ export interface RepoGroup {
 export interface AuthStatus {
   source: TokenSource;
   login: string | null;
+  gh: boolean;
+  manual: boolean;
+  oauth: boolean;
+  oauth_available: boolean;
+}
+
+export interface DeviceCode {
+  device_code: string;
+  user_code: string;
+  verification_uri: string;
+  expires_in: number;
+  interval: number;
 }
 
 export interface DashboardState {
@@ -84,10 +96,21 @@ export const api = {
   setToken: (token: string) => invoke<AuthStatus>("set_token", { token }),
   clearToken: () => invoke<AuthStatus>("clear_token"),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
+  repoFromFolder: (path: string) => invoke<Repo>("repo_from_folder", { path }),
+  oauthStart: () => invoke<DeviceCode>("oauth_start"),
+  oauthLogout: () => invoke<AuthStatus>("oauth_logout"),
   openSettings: () => invoke<void>("open_settings"),
   quit: () => invoke<void>("quit"),
 };
 
 export function onDashboard(cb: (d: DashboardState) => void): Promise<UnlistenFn> {
   return listen<DashboardState>("dashboard", (e) => cb(e.payload));
+}
+
+export function onAuthChanged(cb: (a: AuthStatus) => void): Promise<UnlistenFn> {
+  return listen<AuthStatus>("auth-changed", (e) => cb(e.payload));
+}
+
+export function onOauthFailed(cb: (msg: string) => void): Promise<UnlistenFn> {
+  return listen<string>("oauth-failed", (e) => cb(e.payload));
 }

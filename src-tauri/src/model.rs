@@ -106,15 +106,33 @@ pub struct RepoGroup {
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum TokenSource {
-    Manual,
     Gh,
+    Manual,
+    Oauth,
     None,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AuthStatus {
+    /// Source in use (first available in detection order).
     pub source: TokenSource,
     pub login: Option<String>,
+    /// Which sources were detected, for the account panel.
+    #[serde(default)]
+    pub gh: bool,
+    #[serde(default)]
+    pub manual: bool,
+    #[serde(default)]
+    pub oauth: bool,
+    /// Whether this build can offer "Iniciar sesión con GitHub".
+    #[serde(default)]
+    pub oauth_available: bool,
+}
+
+impl AuthStatus {
+    pub fn none() -> Self {
+        Self { source: TokenSource::None, login: None, gh: false, manual: false, oauth: false, oauth_available: false }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -130,7 +148,7 @@ impl Default for DashboardState {
     fn default() -> Self {
         Self {
             groups: Vec::new(),
-            auth: AuthStatus { source: TokenSource::None, login: None },
+            auth: AuthStatus::none(),
             banner: None,
             banner_url: None,
             last_updated: None,

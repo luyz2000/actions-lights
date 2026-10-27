@@ -1,10 +1,44 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api, onDashboard, type DashboardState } from "$lib/api";
+  import "$lib/theme.css";
+  import { api, onDashboard, type DashboardState, type Light } from "$lib/api";
+  import { formatAgo } from "$lib/format";
+  import StatusIcon from "$lib/StatusIcon.svelte";
   import Card from "./Card.svelte";
 
   let dash = $state<DashboardState | null>(null);
   let now = $state(new Date());
+  let refreshing = $state(false);
+
+  const counts = $derived.by(() => {
+    const c: Record<Light, number> = { red: 0, yellow: 0, green: 0, gray: 0 };
+    for (const g of dash?.groups ?? []) for (const card of g.cards) c[card.light]++;
+    return c;
+  });
+  const overall = $derived<Light>(
+    counts.red ? "red" : counts.yellow ? "yellow" : counts.green ? "green" : "gray",
+  );
+  const headline = $derived.by(() => {
+    if (!dash?.last_updated) return "Consultando GitHub…";
+    if (counts.red) return counts.red === 1 ? "1 workflow falló" : `${counts.red} workflows fallaron`;
+    if (counts.yellow) return counts.yellow === 1 ? "1 workflow en curso" : `${counts.yellow} workflows en curso`;
+    if (counts.green) return "Todo en verde";
+    return "Sin actividad";
+  });
+  const detail = $derived(
+    [
+      counts.yellow && counts.red ? `${counts.yellow} en curso` : null,
+      counts.green && (counts.red || counts.yellow) ? `${counts.green} OK` : null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  );
+
+  async function refresh() {
+    refreshing = true;
+    await api.refreshNow().catch(() => {});
+    setTimeout(() => (refreshing = false), 800);
+  }
 
   onMount(() => {
     api.getDashboard().then((d) => (dash = d));
@@ -18,6 +52,20 @@
 </script>
 
 <main>
+  <header>
+    <StatusIcon light={overall} size={20} />
+    <div class="summary">
+      <div class="headline">{headline}</div>
+      {#if detail}<div class="detail">{detail}</div>{/if}
+    </div>
+    <button class="icon-btn" class:spinning={refreshing} onclick={refresh} title="Actualizar ahora" aria-label="Actualizar ahora">
+      <svg width="15" height="15" viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+    </button>
+    <button class="icon-btn" onclick={() => api.openSettings()} title="Ajustes" aria-label="Ajustes">
+      <svg width="15" height="15" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+    </button>
+  </header>
+
   {#if dash?.banner}
     {#if dash.banner_url}
       <button class="banner link" onclick={() => api.openUrl(dash!.banner_url!)}>{dash.banner}</button>
@@ -27,112 +75,164 @@
   {/if}
 
   <div class="list">
-    {#if !dash || dash.groups.length === 0}
+    {#if dash && dash.groups.length === 0}
       <div class="empty">
-        <p>No vigilas ningún workflow todavía</p>
-        <button class="primary" onclick={() => api.openSettings()}>Elegir repos y workflows</button>
+        <p class="title">Aún no vigilas ningún workflow</p>
+        <p class="muted">Elige los repos y workflows de deploy que quieres seguir desde la barra.</p>
+        <button class="btn primary" onclick={() => api.openSettings()}>Elegir workflows</button>
       </div>
-    {:else}
+    {:else if dash}
       {#each dash.groups as group (group.repo)}
-        <div class="h">{group.repo}</div>
-        {#each group.cards as card (card.key)}
-          <Card {card} {now} />
-        {/each}
+        <section>
+          <h2>{group.repo}</h2>
+          {#each group.cards as card (card.key)}
+            <Card {card} {now} />
+          {/each}
+        </section>
       {/each}
     {/if}
   </div>
 
   <footer>
-    <button onclick={() => api.refreshNow()}>Actualizar ahora</button>
-    <button onclick={() => api.openSettings()}>Repos y workflows…</button>
-    <button onclick={() => api.quit()}>Salir</button>
+    <span class="muted">
+      {dash?.last_updated ? `Actualizado ${formatAgo(dash.last_updated, now)}` : "Conectando…"}
+      {#if dash?.auth.login} · @{dash.auth.login}{/if}
+    </span>
+    <button class="text-btn" onclick={() => api.quit()}>Salir</button>
   </footer>
 </main>
 
 <style>
   :global(html),
   :global(body) {
-    margin: 0;
     background: transparent;
     overflow: hidden;
+    height: 100%;
   }
   main {
-    --bg: #2b2b31;
-    --card: #34343b;
-    --card-hover: #3d3d45;
-    --track: #45454d;
-    --muted: #9aa0a6;
-    --fg: #e6e6e6;
     box-sizing: border-box;
-    height: 100vh;
+    height: 100%;
     display: flex;
     flex-direction: column;
     background: var(--bg);
-    color: var(--fg);
-    font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, sans-serif;
     border-radius: 12px;
-    padding: 10px;
+    border: 0.5px solid var(--border);
     user-select: none;
+    overflow: hidden;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 12px 10px 14px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .summary {
+    flex: 1;
+    min-width: 0;
+  }
+  .headline {
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .detail {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .icon-btn {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .icon-btn:hover {
+    background: var(--hover);
+    color: var(--fg);
+  }
+  .icon-btn.spinning svg {
+    animation: spin 0.8s linear;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
   .banner {
-    background: #5a3d0f;
-    color: #ffd38a;
+    margin: 8px 10px 0;
+    background: var(--warn-bg);
+    color: var(--warn-fg);
     border-radius: 8px;
     padding: 8px 10px;
-    margin-bottom: 8px;
     font-size: 12px;
     word-break: break-word;
     user-select: text;
   }
   .banner.link {
     display: block;
-    width: 100%;
+    width: calc(100% - 20px);
     text-align: left;
     border: 0;
-    font-family: inherit;
     cursor: pointer;
     text-decoration: underline;
   }
   .list {
     flex: 1;
     overflow-y: auto;
+    padding: 4px 6px 8px;
   }
-  .h {
-    color: var(--muted);
+  section + section {
+    border-top: 0.5px solid var(--border);
+    margin-top: 4px;
+  }
+  h2 {
+    margin: 0;
+    padding: 10px 8px 4px;
     font-size: 11px;
-    text-transform: uppercase;
+    font-weight: 600;
     letter-spacing: 0.04em;
-    margin: 6px 2px;
+    text-transform: uppercase;
+    color: var(--muted);
   }
   .empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
     text-align: center;
-    color: var(--muted);
-    padding-top: 80px;
+    padding: 70px 24px 0;
+  }
+  .empty p {
+    margin: 0;
+  }
+  .empty .title {
+    font-weight: 600;
+  }
+  .empty .btn {
+    margin-top: 8px;
   }
   footer {
     display: flex;
-    gap: 6px;
-    border-top: 1px solid #3a3a42;
-    padding-top: 8px;
+    align-items: center;
+    padding: 8px 12px;
+    border-top: 0.5px solid var(--border);
+    font-size: 12px;
   }
-  footer button,
-  .primary {
-    background: transparent;
-    color: var(--fg);
-    border: 0;
-    border-radius: 6px;
-    padding: 5px 8px;
-    font: inherit;
-    cursor: pointer;
-  }
-  footer button:hover {
-    background: var(--card);
-  }
-  footer button:last-child {
+  .text-btn {
     margin-left: auto;
+    border: 0;
+    background: transparent;
     color: var(--muted);
+    cursor: pointer;
+    border-radius: 5px;
+    padding: 2px 6px;
   }
-  .primary {
-    background: #3a5ccc;
+  .text-btn:hover {
+    background: var(--hover);
+    color: var(--fg);
   }
 </style>

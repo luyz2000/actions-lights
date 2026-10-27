@@ -4,7 +4,7 @@ use crate::github::{GithubApi, HttpClient, Repo, Workflow, GITHUB_API};
 use crate::auth::SecretStore;
 use crate::model::{AuthStatus, Config, DashboardState};
 use crate::tray;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_opener::OpenerExt;
 
@@ -71,7 +71,7 @@ pub fn auth_status(ctx: State<'_, AppCtx>) -> AuthStatus {
 pub async fn set_token(ctx: State<'_, AppCtx>, token: String) -> Result<AuthStatus, String> {
     let token = token.trim().to_string();
     HttpClient::new(GITHUB_API, Some(token.clone())).me().await.map_err(|e| e.message())?;
-    ctx.store.set(&token)?;
+    ctx.manual.set(&token)?;
     let status = ctx.refresh_auth().await;
     ctx.wake.notify_one();
     Ok(status)
@@ -79,7 +79,7 @@ pub async fn set_token(ctx: State<'_, AppCtx>, token: String) -> Result<AuthStat
 
 #[tauri::command]
 pub async fn clear_token(ctx: State<'_, AppCtx>) -> Result<AuthStatus, String> {
-    ctx.store.clear()?;
+    ctx.manual.clear()?;
     let status = ctx.refresh_auth().await;
     ctx.wake.notify_one();
     Ok(status)
@@ -98,4 +98,63 @@ pub fn open_settings(app: AppHandle) {
 #[tauri::command]
 pub fn quit(app: AppHandle) {
     app.exit(0);
+}
+
+/// Local checkout → its GitHub repo (via the origin remote).
+#[tauri::command]
+pub async fn repo_from_folder(ctx: State<'_, AppCtx>, path: String) -> Result<Repo, String> {
+    let full = crate::git_remote::repo_from_folder(std::path::Path::new(&path))?;
+    let api = ctx.api.clone();
+    api.get_repo(&full).await.map_err(|e| e.message())
+}
+
+/// Starts "Iniciar sesión con GitHub": returns the code to show, opens the verification
+/// page and polls in the background. Emits `auth-changed` on success or `oauth-failed`.
+#[tauri::command]
+pub async fn oauth_start(app: AppHandle) -> Result<crate::oauth::DeviceCode, String> {
+    use crate::oauth::{self, PollResult, GITHUB_WEB};
+    let client_id = oauth::client_id().ok_or("Esta versión no incluye inicio de sesión con GitHub")?;
+    let code = oauth::request_code(GITHUB_WEB, client_id).await?;
+    let _ = app.opener().open_url(code.verification_uri.clone(), None::<&str>);
+
+    let device_code = code.device_code.clone();
+    let mut interval = code.interval.max(5);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(code.expires_in);
+    tauri::async_runtime::spawn(async move {
+        let fail = |msg: &str| {
+            let _ = app.emit("oauth-failed", msg.to_string());
+        };
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
+            if std::time::Instant::now() > deadline {
+                return fail("El código caducó, vuelve a intentarlo");
+            }
+            match oauth::poll_once(GITHUB_WEB, client_id, &device_code).await {
+                Ok(PollResult::Pending) => {}
+                Ok(PollResult::SlowDown) => interval += 5,
+                Ok(PollResult::Token(token)) => {
+                    let ctx = app.state::<AppCtx>();
+                    if let Err(e) = ctx.oauth.set(&token) {
+                        return fail(&e);
+                    }
+                    let status = ctx.refresh_auth().await;
+                    ctx.wake.notify_one();
+                    let _ = app.emit("auth-changed", status);
+                    return;
+                }
+                Ok(PollResult::Denied) => return fail("Inicio de sesión cancelado"),
+                Ok(PollResult::Expired) => return fail("El código caducó, vuelve a intentarlo"),
+                Err(e) => return fail(&e),
+            }
+        }
+    });
+    Ok(code)
+}
+
+#[tauri::command]
+pub async fn oauth_logout(ctx: State<'_, AppCtx>) -> Result<AuthStatus, String> {
+    ctx.oauth.clear()?;
+    let status = ctx.refresh_auth().await;
+    ctx.wake.notify_one();
+    Ok(status)
 }

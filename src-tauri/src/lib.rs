@@ -2,11 +2,13 @@ mod app_state;
 mod auth;
 mod commands;
 mod config;
+mod git_remote;
 mod github;
 mod icon;
 mod interval;
 mod model;
 mod notify_rules;
+mod oauth;
 mod poller;
 mod progress;
 mod status;
@@ -25,6 +27,7 @@ use tauri_plugin_notification::{NotificationExt, PermissionState};
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
@@ -40,6 +43,9 @@ pub fn run() {
             commands::set_token,
             commands::clear_token,
             commands::open_url,
+            commands::repo_from_folder,
+            commands::oauth_start,
+            commands::oauth_logout,
             commands::open_settings,
             commands::quit,
         ])
@@ -55,9 +61,10 @@ pub fn run() {
             app.manage(AppCtx {
                 cfg: RwLock::new(cfg),
                 api: Arc::new(HttpClient::new(GITHUB_API, None)),
-                store: KeyringStore,
+                manual: KeyringStore { account: auth::MANUAL_ACCOUNT },
+                oauth: KeyringStore { account: auth::OAUTH_ACCOUNT },
                 dashboard: RwLock::new(DashboardState::default()),
-                auth: RwLock::new(DashboardState::default().auth),
+                auth: RwLock::new(model::AuthStatus::none()),
                 wake: Arc::new(tokio::sync::Notify::new()),
                 config_dir,
             });
