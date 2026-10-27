@@ -1,3 +1,4 @@
+mod config;
 mod icon;
 mod model;
 mod notify_rules;
