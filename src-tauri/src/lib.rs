@@ -1,3 +1,6 @@
+mod model;
+mod status;
+
 use tauri::tray::TrayIconBuilder;
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_autostart::MacosLauncher;
