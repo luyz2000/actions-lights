@@ -1,4 +1,5 @@
 mod model;
+mod progress;
 mod status;
 
 use tauri::tray::TrayIconBuilder;
