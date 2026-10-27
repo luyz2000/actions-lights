@@ -1,4 +1,5 @@
 mod model;
+mod notify_rules;
 mod progress;
 mod status;
 
