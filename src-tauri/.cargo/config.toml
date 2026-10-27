@@ -1,0 +1,4 @@
+[env]
+# Public client id of the "Actions Lights" GitHub OAuth App (device flow, no secret).
+# Enables "Iniciar sesión con GitHub"; override or unset to build without it.
+ACTIONS_LIGHTS_OAUTH_CLIENT_ID = "Ov23liCkUsuN9NAf9i5g"
