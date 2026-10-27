@@ -35,6 +35,7 @@ export interface DashboardState {
   groups: RepoGroup[];
   auth: AuthStatus;
   banner: string | null;
+  banner_url: string | null;
   last_updated: string | null;
 }
 

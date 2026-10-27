@@ -64,7 +64,14 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "refresh" => app.state::<crate::app_state::AppCtx>().wake.notify_one(),
+            "refresh" => {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let ctx = app.state::<crate::app_state::AppCtx>();
+                    ctx.refresh_auth().await;
+                    ctx.wake.notify_one();
+                });
+            }
             "settings" => open_settings(app),
             "quit" => app.exit(0),
             _ => {}

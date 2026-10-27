@@ -9,8 +9,11 @@ use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::{Mutex, RwLock};
+use std::time::Duration;
 
 pub const GITHUB_API: &str = "https://api.github.com";
+/// Bounds every request so a socket dropped during sleep or a network change can't hang polling.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ApiError {
@@ -82,8 +85,19 @@ fn next_link(h: &HeaderMap) -> Option<String> {
 
 impl HttpClient {
     pub fn new(base: &str, token: Option<String>) -> Self {
+        Self::with_timeout(base, token, REQUEST_TIMEOUT)
+    }
+
+    pub fn with_timeout(base: &str, token: Option<String>, timeout: Duration) -> Self {
+        let http = reqwest::Client::builder()
+            .connect_timeout(timeout.min(Duration::from_secs(10)))
+            .timeout(timeout)
+            .pool_idle_timeout(Duration::from_secs(60))
+            .tcp_keepalive(Duration::from_secs(30))
+            .build()
+            .expect("http client");
         Self {
-            http: reqwest::Client::new(),
+            http,
             base: base.trim_end_matches('/').to_string(),
             token: RwLock::new(token),
             etags: Mutex::new(HashMap::new()),
@@ -349,6 +363,24 @@ mod tests {
         let b = c.latest_run(&watched()).await.unwrap();
         second.assert_async().await;
         assert_eq!(a, b);
+    }
+
+    #[tokio::test]
+    async fn hung_server_times_out_instead_of_waiting_forever() {
+        // Accepts the connection but never answers (like a socket dropped during sleep).
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let mut held = Vec::new();
+            loop {
+                if let Ok((sock, _)) = listener.accept().await {
+                    held.push(sock);
+                }
+            }
+        });
+        let c = HttpClient::with_timeout(&format!("http://{addr}"), None, std::time::Duration::from_millis(300));
+        let res = tokio::time::timeout(std::time::Duration::from_secs(5), c.me()).await;
+        assert!(matches!(res, Ok(Err(ApiError::Network(_)))), "got {res:?}");
     }
 
     #[tokio::test]

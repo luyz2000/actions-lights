@@ -122,6 +122,7 @@ pub struct DashboardState {
     pub groups: Vec<RepoGroup>,
     pub auth: AuthStatus,
     pub banner: Option<String>,
+    pub banner_url: Option<String>,
     pub last_updated: Option<DateTime<Utc>>,
 }
 
@@ -131,6 +132,7 @@ impl Default for DashboardState {
             groups: Vec::new(),
             auth: AuthStatus { source: TokenSource::None, login: None },
             banner: None,
+            banner_url: None,
             last_updated: None,
         }
     }

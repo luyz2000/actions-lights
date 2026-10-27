@@ -19,7 +19,11 @@
 
 <main>
   {#if dash?.banner}
-    <div class="banner">{dash.banner}</div>
+    {#if dash.banner_url}
+      <button class="banner link" onclick={() => api.openUrl(dash!.banner_url!)}>{dash.banner}</button>
+    {:else}
+      <div class="banner">{dash.banner}</div>
+    {/if}
   {/if}
 
   <div class="list">
@@ -78,6 +82,16 @@
     margin-bottom: 8px;
     font-size: 12px;
     word-break: break-word;
+    user-select: text;
+  }
+  .banner.link {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    font-family: inherit;
+    cursor: pointer;
+    text-decoration: underline;
   }
   .list {
     flex: 1;

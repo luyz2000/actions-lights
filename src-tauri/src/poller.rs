@@ -1,4 +1,4 @@
-use crate::github::{failed_step, steps_of, ApiError, GithubApi, Job};
+use crate::github::{failed_step, steps_of, ApiError, GithubApi, Job, RateInfo};
 use crate::model::{Card, Config, Light, RepoGroup, RunSnapshot, WatchedWorkflow};
 use crate::notify_rules::{decide, NotifyKind, Seen};
 use crate::progress::{estimate, median_secs, step_label};
@@ -170,18 +170,44 @@ pub fn notification_text(
     (title, body)
 }
 
-fn banner_for(auth_error: Option<&ApiError>, has_token: bool) -> Option<String> {
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Banner {
+    pub text: Option<String>,
+    /// Link the banner points to (SSO authorization page).
+    pub url: Option<String>,
+}
+
+/// `stretched_to` is the poll interval when the rate budget forced it above its base.
+fn banner_for(auth_error: Option<&ApiError>, has_token: bool, stretched_to: Option<std::time::Duration>) -> Banner {
+    let text = |s: &str| Some(s.to_string());
     match auth_error {
-        Some(ApiError::Sso { url }) => {
-            Some(format!("Autoriza el token para la organización: {}", url.as_deref().unwrap_or("revisa tu token en GitHub")))
-        }
-        Some(ApiError::Unauthorized) => {
-            Some("Sesión de GitHub inválida: abre Repos y workflows… para revisar el token".into())
-        }
-        _ if !has_token => Some("Sin token: solo repos públicos, actualizando cada 5 min".into()),
-        _ => None,
+        Some(ApiError::Sso { url }) => Banner {
+            text: text("Autoriza el token para la organización (SSO) — clic para abrir"),
+            url: url.clone(),
+        },
+        Some(ApiError::Unauthorized) => Banner {
+            text: text("Sesión de GitHub inválida: revisa `gh auth login` o el token en Repos y workflows…"),
+            url: None,
+        },
+        _ if !has_token => Banner { text: text("Sin token: solo repos públicos, actualizando cada 5 min"), url: None },
+        _ => match stretched_to {
+            Some(d) => Banner {
+                text: Some(format!("Límite de la API bajo: actualizando cada {} min", (d.as_secs() + 59) / 60)),
+                url: None,
+            },
+            None => Banner::default(),
+        },
     }
 }
+
+/// Re-resolve the token (gh may have been logged in/refreshed since) while auth is broken
+/// or missing. Called at most once per cycle, so it can't spin.
+fn needs_auth_refresh(auth_error: Option<&ApiError>, has_token: bool) -> bool {
+    matches!(auth_error, Some(ApiError::Unauthorized)) || !has_token
+}
+
+/// A whole cycle is bounded too, on top of per-request timeouts.
+const CYCLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
 
 /// Background loop. Ticks every few seconds against the wall clock (not a monotonic sleep)
 /// so a poll that came due while the Mac was asleep runs right after wake.
@@ -205,7 +231,10 @@ pub fn start(app: tauri::AppHandle) {
             }
             let cfg = ctx.cfg.read().unwrap().clone();
             let now = Utc::now();
-            let out = run_cycle(&*ctx.api, &cfg, &mut st, now).await;
+            let Ok(out) = tokio::time::timeout(CYCLE_TIMEOUT, run_cycle(&*ctx.api, &cfg, &mut st, now)).await else {
+                next_due = SystemTime::now() + Duration::from_secs(15);
+                continue;
+            };
 
             // A stale gh token: re-resolve once and poll again right away.
             if out.auth_error == Some(ApiError::Unauthorized) && !retried_auth {
@@ -218,6 +247,10 @@ pub fn start(app: tauri::AppHandle) {
             if out.auth_error.is_none() {
                 retried_auth = false;
             }
+            // Later recovery (e.g. `gh auth login` after a revoke): pick it up next cycle.
+            if needs_auth_refresh(out.auth_error.as_ref(), ctx.api.has_token()) {
+                ctx.refresh_auth().await;
+            }
 
             let has_token = ctx.api.has_token();
             let lights: Vec<Light> = out.groups.iter().flat_map(|g| g.cards.iter().map(|c| c.light)).collect();
@@ -225,10 +258,16 @@ pub fn start(app: tauri::AppHandle) {
             let ring = (overall == Light::Yellow).then_some(out.min_running_progress.unwrap_or(0.0));
             crate::tray::set_icon(&app, overall, ring);
 
+            let rate = ctx.api.rate();
+            let wait = crate::interval::next_interval(out.any_running, has_token, &rate, now, out.requests.max(1));
+            let base = crate::interval::next_interval(out.any_running, has_token, &RateInfo::default(), now, 1);
+            let banner = banner_for(out.auth_error.as_ref(), has_token, (wait > base).then_some(wait));
+
             let dashboard = crate::model::DashboardState {
                 groups: out.groups,
                 auth: ctx.auth.read().unwrap().clone(),
-                banner: banner_for(out.auth_error.as_ref(), has_token),
+                banner: banner.text,
+                banner_url: banner.url,
                 last_updated: Some(now),
             };
             *ctx.dashboard.write().unwrap() = dashboard.clone();
@@ -239,7 +278,6 @@ pub fn start(app: tauri::AppHandle) {
                 let _ = app.notification().builder().title(title).body(body).show();
             }
 
-            let wait = crate::interval::next_interval(out.any_running, has_token, &ctx.api.rate(), now, out.requests.max(1));
             next_due = SystemTime::now() + wait;
         }
     });
@@ -248,7 +286,7 @@ pub fn start(app: tauri::AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::github::{RateInfo, Repo, Step, Workflow};
+    use crate::github::{Repo, Step, Workflow};
     use crate::model::NotifyPrefs;
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -449,6 +487,34 @@ mod tests {
         let out = run_cycle(&api, &c, &mut PollerState::new(), now).await;
         let repos: Vec<_> = out.groups.iter().map(|g| (g.repo.as_str(), g.cards.len())).collect();
         assert_eq!(repos, vec![("acme/web", 2), ("acme/api", 1)]);
+    }
+
+    #[test]
+    fn sso_banner_carries_clickable_url() {
+        let sso = ApiError::Sso { url: Some("https://github.com/orgs/acme/sso?x=1".into()) };
+        let b = banner_for(Some(&sso), true, None);
+        assert_eq!(b.url.as_deref(), Some("https://github.com/orgs/acme/sso?x=1"));
+        assert!(b.text.unwrap().contains("Autoriza el token"));
+    }
+
+    #[test]
+    fn stretched_interval_explains_rate_limit() {
+        let b = banner_for(None, true, Some(std::time::Duration::from_secs(300)));
+        assert_eq!(b.text.as_deref(), Some("Límite de la API bajo: actualizando cada 5 min"));
+        assert_eq!(b.url, None);
+    }
+
+    #[test]
+    fn healthy_has_no_banner() {
+        assert_eq!(banner_for(None, true, None), Banner::default());
+    }
+
+    #[test]
+    fn auth_refresh_while_unauthorized_or_tokenless() {
+        assert!(needs_auth_refresh(Some(&ApiError::Unauthorized), true));
+        assert!(needs_auth_refresh(None, false));
+        assert!(!needs_auth_refresh(None, true));
+        assert!(!needs_auth_refresh(Some(&ApiError::NotFound), true));
     }
 
     #[test]

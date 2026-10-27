@@ -9,6 +9,10 @@ use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_opener::OpenerExt;
 
 pub fn apply_autostart(app: &AppHandle, enabled: bool) {
+    // Dev builds would register target/debug as a login item.
+    if cfg!(debug_assertions) {
+        return;
+    }
     let launcher = app.autolaunch();
     let _ = if enabled { launcher.enable() } else { launcher.disable() };
 }
@@ -19,8 +23,10 @@ pub fn get_dashboard(ctx: State<'_, AppCtx>) -> DashboardState {
 }
 
 #[tauri::command]
-pub fn refresh_now(ctx: State<'_, AppCtx>) {
+pub async fn refresh_now(ctx: State<'_, AppCtx>) -> Result<(), String> {
+    ctx.refresh_auth().await;
     ctx.wake.notify_one();
+    Ok(())
 }
 
 #[tauri::command]

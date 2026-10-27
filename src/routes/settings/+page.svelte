@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import { api, type AuthStatus, type Config, type Repo, type WatchedWorkflow, type Workflow } from "$lib/api";
   import Account from "./Account.svelte";
   import RepoList from "./RepoList.svelte";
@@ -67,13 +68,13 @@
     if (entry && i >= 0) cfg.watched[i] = entry;
     else if (entry) cfg.watched.push(entry);
     else if (i >= 0) cfg.watched.splice(i, 1);
-    status = null;
+    save();
   }
 
   async function save() {
     try {
       await api.saveConfig($state.snapshot(cfg));
-      status = "Guardado ✓";
+      status = "Guardado automáticamente ✓";
     } catch (e) {
       status = `No se pudo guardar: ${e}`;
     }
@@ -85,9 +86,25 @@
     await loadRepos();
   }
 
-  onMount(async () => {
-    [cfg, auth] = await Promise.all([api.getConfig(), api.authStatus()]);
-    await loadRepos();
+  // The window lives hidden for the whole session: refresh what may have changed since
+  // launch (gh login finished, network came up) every time it's brought forward.
+  async function refresh() {
+    auth = await api.authStatus();
+    if (reposError || repos.length === 0) await loadRepos();
+  }
+
+  onMount(() => {
+    Promise.all([api.getConfig(), api.authStatus()]).then(async ([c, a]) => {
+      cfg = c;
+      auth = a;
+      await loadRepos();
+    });
+    const unlisten = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+      if (focused) refresh();
+    });
+    return () => {
+      unlisten.then((f) => f());
+    };
   });
 </script>
 
@@ -123,10 +140,10 @@
   <section class="bottom">
     <Account {auth} onauth={onAuth} />
     <div class="actions">
-      <label><input type="checkbox" bind:checked={cfg.autostart} /> Abrir al iniciar sesión</label>
+      <label><input type="checkbox" bind:checked={cfg.autostart} onchange={save} /> Abrir al iniciar sesión</label>
       <span class="muted">{cfg.watched.length} workflow(s) vigilados</span>
       {#if status}<span class="status">{status}</span>{/if}
-      <button class="primary" onclick={save}>Guardar</button>
+      <button class="primary" onclick={loadRepos}>Recargar repos</button>
     </div>
   </section>
 </main>
