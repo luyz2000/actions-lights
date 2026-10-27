@@ -2,8 +2,10 @@ mod auth;
 mod config;
 mod github;
 mod icon;
+mod interval;
 mod model;
 mod notify_rules;
+mod poller;
 mod progress;
 mod status;
 
