@@ -1,5 +1,6 @@
 mod auth;
 mod config;
+mod github;
 mod icon;
 mod model;
 mod notify_rules;
