@@ -1,4 +1,4 @@
-use crate::github::{failed_step, steps_of, ApiError, GithubApi, Job, RateInfo};
+use crate::github::{failed_step, steps_of, ApiError, GithubApi, Job};
 use crate::model::{Card, Config, Light, RepoGroup, RunSnapshot, WatchedWorkflow};
 use crate::notify_rules::{decide, NotifyKind, Seen};
 use crate::progress::{estimate, median_secs, step_label};
@@ -170,10 +170,85 @@ pub fn notification_text(
     (title, body)
 }
 
+fn banner_for(auth_error: Option<&ApiError>, has_token: bool) -> Option<String> {
+    match auth_error {
+        Some(ApiError::Sso { url }) => {
+            Some(format!("Autoriza el token para la organización: {}", url.as_deref().unwrap_or("revisa tu token en GitHub")))
+        }
+        Some(ApiError::Unauthorized) => {
+            Some("Sesión de GitHub inválida: abre Repos y workflows… para revisar el token".into())
+        }
+        _ if !has_token => Some("Sin token: solo repos públicos, actualizando cada 5 min".into()),
+        _ => None,
+    }
+}
+
+/// Background loop. Ticks every few seconds against the wall clock (not a monotonic sleep)
+/// so a poll that came due while the Mac was asleep runs right after wake.
+pub fn start(app: tauri::AppHandle) {
+    use crate::app_state::AppCtx;
+    use std::time::{Duration, SystemTime};
+    use tauri::{Emitter, Manager};
+    use tauri_plugin_notification::NotificationExt;
+
+    tauri::async_runtime::spawn(async move {
+        let ctx = app.state::<AppCtx>();
+        let mut st = PollerState::new();
+        let mut next_due = SystemTime::now();
+        let mut retried_auth = false;
+        loop {
+            tokio::select! {
+                _ = ctx.wake.notified() => {}
+                _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                    if SystemTime::now() < next_due { continue; }
+                }
+            }
+            let cfg = ctx.cfg.read().unwrap().clone();
+            let now = Utc::now();
+            let out = run_cycle(&*ctx.api, &cfg, &mut st, now).await;
+
+            // A stale gh token: re-resolve once and poll again right away.
+            if out.auth_error == Some(ApiError::Unauthorized) && !retried_auth {
+                retried_auth = true;
+                ctx.refresh_auth().await;
+                next_due = SystemTime::now();
+                ctx.wake.notify_one();
+                continue;
+            }
+            if out.auth_error.is_none() {
+                retried_auth = false;
+            }
+
+            let has_token = ctx.api.has_token();
+            let lights: Vec<Light> = out.groups.iter().flat_map(|g| g.cards.iter().map(|c| c.light)).collect();
+            let overall = crate::status::aggregate(&lights);
+            let ring = (overall == Light::Yellow).then_some(out.min_running_progress.unwrap_or(0.0));
+            crate::tray::set_icon(&app, overall, ring);
+
+            let dashboard = crate::model::DashboardState {
+                groups: out.groups,
+                auth: ctx.auth.read().unwrap().clone(),
+                banner: banner_for(out.auth_error.as_ref(), has_token),
+                last_updated: Some(now),
+            };
+            *ctx.dashboard.write().unwrap() = dashboard.clone();
+            let _ = app.emit("dashboard", &dashboard);
+
+            for n in &out.notifications {
+                let (title, body) = notification_text(&n.watched, &n.run, n.kind, n.failed_step.as_deref());
+                let _ = app.notification().builder().title(title).body(body).show();
+            }
+
+            let wait = crate::interval::next_interval(out.any_running, has_token, &ctx.api.rate(), now, out.requests.max(1));
+            next_due = SystemTime::now() + wait;
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::github::{Repo, Step, Workflow};
+    use crate::github::{RateInfo, Repo, Step, Workflow};
     use crate::model::NotifyPrefs;
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicU32, Ordering};

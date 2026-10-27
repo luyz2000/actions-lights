@@ -5,6 +5,8 @@
   "windows": ["popover", "settings"],
   "permissions": [
     "core:default",
+    "autostart:default",
+    "notification:default",
     "opener:default"
   ]
 }
