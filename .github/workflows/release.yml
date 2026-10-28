@@ -1,26 +1,44 @@
 name: Release
 
+# On every push to main, release-please keeps a "chore(main): release X.Y.Z" PR up to date
+# (version bump in all manifests + CHANGELOG from conventional commits). Merging that PR
+# creates the tag and the GitHub release; the build job then attaches the macOS app.
+
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      created: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v5
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
   macos:
     name: macOS (universal)
+    needs: release-please
+    if: ${{ needs.release-please.outputs.created == 'true' }}
     runs-on: macos-latest
+    env:
+      TAG: ${{ needs.release-please.outputs.tag }}
+      VERSION: ${{ needs.release-please.outputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
-
-      - name: El tag coincide con la versión de la app
-        run: |
-          app=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          if [ "v$app" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::El tag $GITHUB_REF_NAME no coincide con la versión $app de tauri.conf.json"
-            exit 1
-          fi
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
 
       - uses: actions/setup-node@v7
         with:
@@ -38,24 +56,20 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
-      - name: Notas del release
-        id: notes
-        run: |
-          file=".github/release-notes/$GITHUB_REF_NAME.md"
-          [ -f "$file" ] || file=/dev/null
-          {
-            echo "body<<__NOTES__"
-            cat "$file"
-            echo "__NOTES__"
-          } >> "$GITHUB_OUTPUT"
-
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build universal
+        uses: tauri-apps/tauri-action@v0
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Actions Lights ${{ github.ref_name }}
-          releaseBody: ${{ steps.notes.outputs.body }}
-          releaseDraft: false
-          prerelease: false
           args: --target universal-apple-darwin
+
+      - name: Adjuntar el .dmg al release
+        run: |
+          dmg=$(ls src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg)
+          out="Actions-Lights_${VERSION}_universal.dmg"
+          cp "$dmg" "$out"
+          gh release upload "$TAG" "$out" --clobber
+
+      - name: Añadir instrucciones de instalación a las notas
+        run: |
+          gh release view "$TAG" --json body -q .body > notes.md
+          sed "s/{{VERSION}}/${VERSION}/g" .github/release-install.md >> notes.md
+          gh release edit "$TAG" --title "Actions Lights $TAG" --notes-file notes.md
