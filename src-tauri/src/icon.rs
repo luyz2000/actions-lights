@@ -39,7 +39,10 @@ pub fn render(light: Light, progress: Option<f32>) -> Vec<u8> {
                 None => (coverage(r, -1.0, DISC_R), color),
                 Some(f) => {
                     let angle = dx.atan2(-dy).rem_euclid(TAU) / TAU;
-                    (coverage(r, RING_INNER, RING_OUTER), if angle < f { color } else { TRACK })
+                    (
+                        coverage(r, RING_INNER, RING_OUTER),
+                        if angle < f { color } else { TRACK },
+                    )
                 }
             };
             if alpha > 0.0 {
@@ -63,7 +66,10 @@ mod tests {
 
     #[test]
     fn buffer_size() {
-        assert_eq!(render(Light::Green, None).len(), (ICON_PX * ICON_PX * 4) as usize);
+        assert_eq!(
+            render(Light::Green, None).len(),
+            (ICON_PX * ICON_PX * 4) as usize
+        );
     }
 
     #[test]
@@ -95,6 +101,9 @@ mod tests {
 
     #[test]
     fn progress_is_quantized_to_eighths() {
-        assert_eq!(render(Light::Yellow, Some(0.51)), render(Light::Yellow, Some(0.625)));
+        assert_eq!(
+            render(Light::Yellow, Some(0.51)),
+            render(Light::Yellow, Some(0.625))
+        );
     }
 }

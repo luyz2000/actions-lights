@@ -32,7 +32,11 @@ fn rank(l: Light) -> u8 {
 
 /// Worst state wins: Red > Yellow > Green > Gray.
 pub fn aggregate(lights: &[Light]) -> Light {
-    lights.iter().copied().max_by_key(|l| rank(*l)).unwrap_or(Light::Gray)
+    lights
+        .iter()
+        .copied()
+        .max_by_key(|l| rank(*l))
+        .unwrap_or(Light::Gray)
 }
 
 #[cfg(test)]
@@ -63,7 +67,13 @@ mod tests {
 
     #[test]
     fn non_code_outcomes_are_gray() {
-        for c in ["cancelled", "skipped", "neutral", "stale", "action_required"] {
+        for c in [
+            "cancelled",
+            "skipped",
+            "neutral",
+            "stale",
+            "action_required",
+        ] {
             assert_eq!(light_for("completed", Some(c)), Light::Gray);
         }
     }
@@ -75,7 +85,10 @@ mod tests {
 
     #[test]
     fn waiting_has_label() {
-        assert_eq!(label_for("waiting").as_deref(), Some("esperando aprobación"));
+        assert_eq!(
+            label_for("waiting").as_deref(),
+            Some("esperando aprobación")
+        );
         assert_eq!(label_for("in_progress"), None);
     }
 

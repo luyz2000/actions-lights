@@ -1,7 +1,7 @@
 use crate::app_state::AppCtx;
-use crate::config;
-use crate::github::{GithubApi, HttpClient, Repo, Workflow, GITHUB_API};
 use crate::auth::SecretStore;
+use crate::config;
+use crate::github::{GITHUB_API, GithubApi, HttpClient, Repo, Workflow};
 use crate::model::{AuthStatus, Config, DashboardState};
 use crate::tray;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -14,7 +14,11 @@ pub fn apply_autostart(app: &AppHandle, enabled: bool) {
         return;
     }
     let launcher = app.autolaunch();
-    let _ = if enabled { launcher.enable() } else { launcher.disable() };
+    let _ = if enabled {
+        launcher.enable()
+    } else {
+        launcher.disable()
+    };
 }
 
 #[tauri::command]
@@ -70,7 +74,10 @@ pub fn auth_status(ctx: State<'_, AppCtx>) -> AuthStatus {
 #[tauri::command]
 pub async fn set_token(ctx: State<'_, AppCtx>, token: String) -> Result<AuthStatus, String> {
     let token = token.trim().to_string();
-    HttpClient::new(GITHUB_API, Some(token.clone())).me().await.map_err(|e| e.message())?;
+    HttpClient::new(GITHUB_API, Some(token.clone()))
+        .me()
+        .await
+        .map_err(|e| e.message())?;
     ctx.manual.set(&token)?;
     let status = ctx.refresh_auth().await;
     ctx.wake.notify_one();
@@ -87,7 +94,9 @@ pub async fn clear_token(ctx: State<'_, AppCtx>) -> Result<AuthStatus, String> {
 
 #[tauri::command]
 pub fn open_url(app: AppHandle, url: String) -> Result<(), String> {
-    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -112,10 +121,13 @@ pub async fn repo_from_folder(ctx: State<'_, AppCtx>, path: String) -> Result<Re
 /// page and polls in the background. Emits `auth-changed` on success or `oauth-failed`.
 #[tauri::command]
 pub async fn oauth_start(app: AppHandle) -> Result<crate::oauth::DeviceCode, String> {
-    use crate::oauth::{self, PollResult, GITHUB_WEB};
-    let client_id = oauth::client_id().ok_or("Esta versión no incluye inicio de sesión con GitHub")?;
+    use crate::oauth::{self, GITHUB_WEB, PollResult};
+    let client_id =
+        oauth::client_id().ok_or("Esta versión no incluye inicio de sesión con GitHub")?;
     let code = oauth::request_code(GITHUB_WEB, client_id).await?;
-    let _ = app.opener().open_url(code.verification_uri.clone(), None::<&str>);
+    let _ = app
+        .opener()
+        .open_url(code.verification_uri.clone(), None::<&str>);
 
     let device_code = code.device_code.clone();
     let mut interval = code.interval.max(5);

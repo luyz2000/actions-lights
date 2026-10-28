@@ -15,7 +15,10 @@ pub const TRAY_ID: &str = "main";
 static LAST_BLUR_HIDE_MS: AtomicU64 = AtomicU64::new(0);
 
 fn now_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 pub fn icon_image(light: Light, progress: Option<f32>) -> Image<'static> {
@@ -38,7 +41,9 @@ pub fn open_settings(app: &AppHandle) {
 }
 
 fn toggle_popover(app: &AppHandle) {
-    let Some(w) = app.get_webview_window("popover") else { return };
+    let Some(w) = app.get_webview_window("popover") else {
+        return;
+    };
     if w.is_visible().unwrap_or(false) {
         let _ = w.hide();
         return;
@@ -78,7 +83,12 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         })
         .on_tray_icon_event(|tray, event| {
             tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
-            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
                 toggle_popover(tray.app_handle());
             }
         })

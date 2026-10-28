@@ -3,18 +3,20 @@ use std::path::{Path, PathBuf};
 /// "owner/repo" for any common GitHub remote URL form (https, ssh, scp-like).
 pub fn parse_github_remote(url: &str) -> Option<String> {
     let url = url.trim();
-    let rest = if let Some(i) = url.find("github.com/") {
-        &url[i + "github.com/".len()..]
-    } else if let Some(i) = url.find("github.com:") {
-        &url[i + "github.com:".len()..]
-    } else {
-        return None;
+    let rest = match url.find("github.com/") {
+        Some(i) => &url[i + "github.com/".len()..],
+        None => {
+            let i = url.find("github.com:")?;
+            &url[i + "github.com:".len()..]
+        }
     };
     let rest = rest.trim_end_matches('/');
     let rest = rest.strip_suffix(".git").unwrap_or(rest);
     let mut parts = rest.split('/');
     match (parts.next(), parts.next(), parts.next()) {
-        (Some(owner), Some(repo), None) if !owner.is_empty() && !repo.is_empty() => Some(format!("{owner}/{repo}")),
+        (Some(owner), Some(repo), None) if !owner.is_empty() && !repo.is_empty() => {
+            Some(format!("{owner}/{repo}"))
+        }
         _ => None,
     }
 }
@@ -25,9 +27,16 @@ pub fn origin_url(config: &str) -> Option<String> {
     let mut first: Option<String> = None;
     for line in config.lines().map(str::trim) {
         if line.starts_with('[') {
-            current = line.strip_prefix("[remote \"").and_then(|l| l.strip_suffix("\"]")).map(str::to_string);
-        } else if let (Some(remote), Some(value)) = (&current, line.strip_prefix("url").map(str::trim_start)) {
-            let Some(url) = value.strip_prefix('=').map(|v| v.trim().to_string()) else { continue };
+            current = line
+                .strip_prefix("[remote \"")
+                .and_then(|l| l.strip_suffix("\"]"))
+                .map(str::to_string);
+        } else if let (Some(remote), Some(value)) =
+            (&current, line.strip_prefix("url").map(str::trim_start))
+        {
+            let Some(url) = value.strip_prefix('=').map(|v| v.trim().to_string()) else {
+                continue;
+            };
             if remote == "origin" {
                 return Some(url);
             }
@@ -44,7 +53,11 @@ fn git_dir(folder: &Path) -> Option<PathBuf> {
     }
     let text = std::fs::read_to_string(&dot_git).ok()?;
     let dir = PathBuf::from(text.trim().strip_prefix("gitdir:")?.trim());
-    let dir = if dir.is_relative() { folder.join(dir) } else { dir };
+    let dir = if dir.is_relative() {
+        folder.join(dir)
+    } else {
+        dir
+    };
     // A linked worktree keeps its config in the common dir.
     match std::fs::read_to_string(dir.join("commondir")) {
         Ok(common) => Some(dir.join(common.trim())),
@@ -55,7 +68,8 @@ fn git_dir(folder: &Path) -> Option<PathBuf> {
 /// Picks the GitHub repo of a local checkout, without needing the git binary.
 pub fn repo_from_folder(folder: &Path) -> Result<String, String> {
     let dir = git_dir(folder).ok_or("La carpeta no es un repositorio git")?;
-    let config = std::fs::read_to_string(dir.join("config")).map_err(|_| "No se pudo leer la configuración de git")?;
+    let config = std::fs::read_to_string(dir.join("config"))
+        .map_err(|_| "No se pudo leer la configuración de git")?;
     let url = origin_url(&config).ok_or("El repositorio no tiene remotos configurados")?;
     parse_github_remote(&url).ok_or_else(|| format!("El remoto no es de GitHub: {url}"))
 }
@@ -74,7 +88,11 @@ mod tests {
             "ssh://git@github.com/acme/api",
             "https://github.com/acme/api/",
         ] {
-            assert_eq!(parse_github_remote(url).as_deref(), Some("acme/api"), "{url}");
+            assert_eq!(
+                parse_github_remote(url).as_deref(),
+                Some("acme/api"),
+                "{url}"
+            );
         }
     }
 
@@ -96,20 +114,30 @@ mod tests {
 	url = https://github.com/acme/api.git
 	fetch = +refs/heads/*:refs/remotes/origin/*
 "#;
-        assert_eq!(origin_url(cfg).as_deref(), Some("https://github.com/acme/api.git"));
+        assert_eq!(
+            origin_url(cfg).as_deref(),
+            Some("https://github.com/acme/api.git")
+        );
     }
 
     #[test]
     fn origin_url_falls_back_to_first_remote() {
         let cfg = "[remote \"upstream\"]\n\turl = git@github.com:other/api.git\n";
-        assert_eq!(origin_url(cfg).as_deref(), Some("git@github.com:other/api.git"));
+        assert_eq!(
+            origin_url(cfg).as_deref(),
+            Some("git@github.com:other/api.git")
+        );
     }
 
     #[test]
     fn repo_from_folder_reads_git_config() {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::create_dir(tmp.path().join(".git")).unwrap();
-        std::fs::write(tmp.path().join(".git/config"), "[remote \"origin\"]\n\turl = git@github.com:acme/api.git\n").unwrap();
+        std::fs::write(
+            tmp.path().join(".git/config"),
+            "[remote \"origin\"]\n\turl = git@github.com:acme/api.git\n",
+        )
+        .unwrap();
         assert_eq!(repo_from_folder(tmp.path()), Ok("acme/api".to_string()));
     }
 
@@ -119,7 +147,11 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let real = tmp.path().join("real.git");
         std::fs::create_dir(&real).unwrap();
-        std::fs::write(real.join("config"), "[remote \"origin\"]\n\turl = https://github.com/acme/web\n").unwrap();
+        std::fs::write(
+            real.join("config"),
+            "[remote \"origin\"]\n\turl = https://github.com/acme/web\n",
+        )
+        .unwrap();
         let work = tmp.path().join("work");
         std::fs::create_dir(&work).unwrap();
         std::fs::write(work.join(".git"), format!("gitdir: {}\n", real.display())).unwrap();
@@ -129,6 +161,9 @@ mod tests {
     #[test]
     fn repo_from_folder_errors_are_spanish() {
         let tmp = tempfile::tempdir().unwrap();
-        assert_eq!(repo_from_folder(tmp.path()), Err("La carpeta no es un repositorio git".to_string()));
+        assert_eq!(
+            repo_from_folder(tmp.path()),
+            Err("La carpeta no es un repositorio git".to_string())
+        );
     }
 }

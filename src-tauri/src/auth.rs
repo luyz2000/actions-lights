@@ -25,7 +25,11 @@ impl KeyringStore {
 
 impl SecretStore for KeyringStore {
     fn get(&self) -> Option<String> {
-        self.entry().ok()?.get_password().ok().filter(|t| !t.is_empty())
+        self.entry()
+            .ok()?
+            .get_password()
+            .ok()
+            .filter(|t| !t.is_empty())
     }
     fn set(&self, token: &str) -> Result<(), String> {
         self.entry()?.set_password(token).map_err(|e| e.to_string())
@@ -44,7 +48,9 @@ const GH_BIN: &str = if cfg!(windows) { "gh.exe" } else { "gh" };
 pub fn gh_candidates(path_env: Option<&str>) -> Vec<PathBuf> {
     let mut out: Vec<PathBuf> = Vec::new();
     let fixed = ["/opt/homebrew/bin", "/usr/local/bin"].map(PathBuf::from);
-    let from_env = path_env.map(|p| std::env::split_paths(p).collect::<Vec<_>>()).unwrap_or_default();
+    let from_env = path_env
+        .map(|p| std::env::split_paths(p).collect::<Vec<_>>())
+        .unwrap_or_default();
     for dir in fixed.into_iter().chain(from_env) {
         let p = dir.join(GH_BIN);
         if !out.contains(&p) {
@@ -56,7 +62,10 @@ pub fn gh_candidates(path_env: Option<&str>) -> Vec<PathBuf> {
 
 pub fn gh_token(candidates: &[PathBuf]) -> Option<String> {
     let bin = candidates.iter().find(|p| p.is_file())?;
-    let out = Command::new(bin).args(["auth", "token", "--hostname", "github.com"]).output().ok()?;
+    let out = Command::new(bin)
+        .args(["auth", "token", "--hostname", "github.com"])
+        .output()
+        .ok()?;
     if !out.status.success() {
         return None;
     }
@@ -128,7 +137,10 @@ mod tests {
 
     #[test]
     fn none_when_nothing() {
-        assert_eq!(resolve(&store(None), &store(None), &|| None), (None, TokenSource::None));
+        assert_eq!(
+            resolve(&store(None), &store(None), &|| None),
+            (None, TokenSource::None)
+        );
     }
 
     #[test]
@@ -157,7 +169,11 @@ mod tests {
     #[test]
     fn gh_token_uses_first_existing_candidate() {
         let tmp = tempfile::tempdir().unwrap();
-        let ok = script(tmp.path(), "gh", r#"[ "$1 $2 $3 $4" = "auth token --hostname github.com" ] && echo tok"#);
+        let ok = script(
+            tmp.path(),
+            "gh",
+            r#"[ "$1 $2 $3 $4" = "auth token --hostname github.com" ] && echo tok"#,
+        );
         let missing = tmp.path().join("nope/gh");
         assert_eq!(gh_token(&[missing, ok]).as_deref(), Some("tok"));
     }

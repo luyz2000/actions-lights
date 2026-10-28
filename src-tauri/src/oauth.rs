@@ -35,7 +35,10 @@ struct TokenResponse {
 }
 
 fn http() -> reqwest::Client {
-    reqwest::Client::builder().timeout(Duration::from_secs(30)).build().expect("http client")
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .expect("http client")
 }
 
 pub async fn request_code(base: &str, client_id: &str) -> Result<DeviceCode, String> {
@@ -51,7 +54,11 @@ pub async fn request_code(base: &str, client_id: &str) -> Result<DeviceCode, Str
         .map_err(|e| format!("Respuesta inválida de GitHub: {e}"))
 }
 
-pub async fn poll_once(base: &str, client_id: &str, device_code: &str) -> Result<PollResult, String> {
+pub async fn poll_once(
+    base: &str,
+    client_id: &str,
+    device_code: &str,
+) -> Result<PollResult, String> {
     let r: TokenResponse = http()
         .post(format!("{base}/login/oauth/access_token"))
         .header("Accept", "application/json")
@@ -72,7 +79,10 @@ pub async fn poll_once(base: &str, client_id: &str, device_code: &str) -> Result
         (None, Some("slow_down")) => Ok(PollResult::SlowDown),
         (None, Some("access_denied")) => Ok(PollResult::Denied),
         (None, Some("expired_token")) => Ok(PollResult::Expired),
-        (None, other) => Err(format!("Error de inicio de sesión: {}", other.unwrap_or("desconocido"))),
+        (None, other) => Err(format!(
+            "Error de inicio de sesión: {}",
+            other.unwrap_or("desconocido")
+        )),
     }
 }
 
@@ -106,7 +116,10 @@ mod tests {
             .mock("POST", "/login/oauth/access_token")
             .match_body(Matcher::AllOf(vec![
                 Matcher::UrlEncoded("device_code".into(), "dc".into()),
-                Matcher::UrlEncoded("grant_type".into(), "urn:ietf:params:oauth:grant-type:device_code".into()),
+                Matcher::UrlEncoded(
+                    "grant_type".into(),
+                    "urn:ietf:params:oauth:grant-type:device_code".into(),
+                ),
             ]))
             .with_body(body)
             .create_async()
@@ -116,20 +129,39 @@ mod tests {
 
     #[tokio::test]
     async fn poll_maps_every_outcome() {
-        assert_eq!(poll_with(r#"{"error":"authorization_pending"}"#).await, Ok(PollResult::Pending));
-        assert_eq!(poll_with(r#"{"error":"slow_down","interval":10}"#).await, Ok(PollResult::SlowDown));
-        assert_eq!(poll_with(r#"{"error":"access_denied"}"#).await, Ok(PollResult::Denied));
-        assert_eq!(poll_with(r#"{"error":"expired_token"}"#).await, Ok(PollResult::Expired));
+        assert_eq!(
+            poll_with(r#"{"error":"authorization_pending"}"#).await,
+            Ok(PollResult::Pending)
+        );
+        assert_eq!(
+            poll_with(r#"{"error":"slow_down","interval":10}"#).await,
+            Ok(PollResult::SlowDown)
+        );
+        assert_eq!(
+            poll_with(r#"{"error":"access_denied"}"#).await,
+            Ok(PollResult::Denied)
+        );
+        assert_eq!(
+            poll_with(r#"{"error":"expired_token"}"#).await,
+            Ok(PollResult::Expired)
+        );
         assert_eq!(
             poll_with(r#"{"access_token":"gho_x","token_type":"bearer","scope":"repo"}"#).await,
             Ok(PollResult::Token("gho_x".into()))
         );
-        assert!(poll_with(r#"{"error":"incorrect_client_credentials"}"#).await.is_err());
+        assert!(
+            poll_with(r#"{"error":"incorrect_client_credentials"}"#)
+                .await
+                .is_err()
+        );
     }
 
     #[test]
     fn client_id_absent_in_tests() {
         // Feature is hidden unless the build provides a client id.
-        assert_eq!(client_id().is_some(), option_env!("ACTIONS_LIGHTS_OAUTH_CLIENT_ID").is_some());
+        assert_eq!(
+            client_id().is_some(),
+            option_env!("ACTIONS_LIGHTS_OAUTH_CLIENT_ID").is_some()
+        );
     }
 }

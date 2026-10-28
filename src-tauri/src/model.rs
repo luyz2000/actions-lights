@@ -19,7 +19,11 @@ pub struct NotifyPrefs {
 
 impl Default for NotifyPrefs {
     fn default() -> Self {
-        Self { on_success: true, on_failure: true, on_start: false }
+        Self {
+            on_success: true,
+            on_failure: true,
+            on_start: false,
+        }
     }
 }
 
@@ -63,7 +67,10 @@ fn default_true() -> bool {
 
 impl Default for Config {
     fn default() -> Self {
-        Self { watched: Vec::new(), autostart: true }
+        Self {
+            watched: Vec::new(),
+            autostart: true,
+        }
     }
 }
 
@@ -131,7 +138,14 @@ pub struct AuthStatus {
 
 impl AuthStatus {
     pub fn none() -> Self {
-        Self { source: TokenSource::None, login: None, gh: false, manual: false, oauth: false, oauth_available: false }
+        Self {
+            source: TokenSource::None,
+            login: None,
+            gh: false,
+            manual: false,
+            oauth: false,
+            oauth_available: false,
+        }
     }
 }
 

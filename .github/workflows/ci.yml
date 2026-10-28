@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint y tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Tipos (svelte-check)
+        run: npm run check
+
+      - name: Tests de frontend
+        run: npm test
+
+      # The Rust crate embeds the built frontend, so it must exist before cargo runs.
+      - name: Build del frontend
+        run: npm run build
+
+      - name: Formato de Rust
+        working-directory: src-tauri
+        run: cargo fmt --check
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests de Rust
+        working-directory: src-tauri
+        run: cargo test --lib

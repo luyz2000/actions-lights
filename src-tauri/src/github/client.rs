@@ -3,7 +3,7 @@ use crate::model::{RunSnapshot, WatchedWorkflow};
 use crate::progress::StepCount;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use reqwest::header::{HeaderMap, ACCEPT, AUTHORIZATION, IF_NONE_MATCH, USER_AGENT};
+use reqwest::header::{ACCEPT, AUTHORIZATION, HeaderMap, IF_NONE_MATCH, USER_AGENT};
 use reqwest::{StatusCode, Url};
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
@@ -32,7 +32,10 @@ impl ApiError {
             ApiError::Unauthorized => "Token inválido o caducado".into(),
             ApiError::Sso { .. } => "Requiere autorizar el token para la organización (SSO)".into(),
             ApiError::RateLimited { reset_at } => {
-                format!("Límite de la API alcanzado, se reanuda a las {}", reset_at.with_timezone(&chrono::Local).format("%H:%M"))
+                format!(
+                    "Límite de la API alcanzado, se reanuda a las {}",
+                    reset_at.with_timezone(&chrono::Local).format("%H:%M")
+                )
             }
             ApiError::NotFound => "No encontrado (¿repo privado sin acceso?)".into(),
             ApiError::Http(code) => format!("Error de GitHub ({code})"),
@@ -51,10 +54,23 @@ pub trait GithubApi {
     fn me(&self) -> impl Future<Output = Result<String, ApiError>> + Send;
     fn list_repos(&self) -> impl Future<Output = Result<Vec<Repo>, ApiError>> + Send;
     fn get_repo(&self, full: &str) -> impl Future<Output = Result<Repo, ApiError>> + Send;
-    fn list_workflows(&self, repo: &str) -> impl Future<Output = Result<Vec<Workflow>, ApiError>> + Send;
-    fn latest_run(&self, w: &WatchedWorkflow) -> impl Future<Output = Result<Option<RunSnapshot>, ApiError>> + Send;
-    fn recent_success_durations(&self, w: &WatchedWorkflow) -> impl Future<Output = Result<Vec<u64>, ApiError>> + Send;
-    fn jobs(&self, repo: &str, run_id: u64) -> impl Future<Output = Result<Vec<Job>, ApiError>> + Send;
+    fn list_workflows(
+        &self,
+        repo: &str,
+    ) -> impl Future<Output = Result<Vec<Workflow>, ApiError>> + Send;
+    fn latest_run(
+        &self,
+        w: &WatchedWorkflow,
+    ) -> impl Future<Output = Result<Option<RunSnapshot>, ApiError>> + Send;
+    fn recent_success_durations(
+        &self,
+        w: &WatchedWorkflow,
+    ) -> impl Future<Output = Result<Vec<u64>, ApiError>> + Send;
+    fn jobs(
+        &self,
+        repo: &str,
+        run_id: u64,
+    ) -> impl Future<Output = Result<Vec<Job>, ApiError>> + Send;
     fn rate(&self) -> RateInfo;
 }
 
@@ -141,7 +157,10 @@ impl HttpClient {
                     .and_then(|v| v.split("url=").nth(1))
                     .map(|u| u.trim().to_string()),
             },
-            403 | 429 if header_str(h, "x-ratelimit-remaining") == Some("0") || h.contains_key("retry-after") => {
+            403 | 429
+                if header_str(h, "x-ratelimit-remaining") == Some("0")
+                    || h.contains_key("retry-after") =>
+            {
                 let retry = header_str(h, "retry-after").and_then(|v| v.parse::<i64>().ok());
                 let reset_at = match retry {
                     Some(secs) => Utc::now() + chrono::Duration::seconds(secs),
@@ -170,7 +189,10 @@ impl HttpClient {
         if let Some(c) = self.etags.lock().unwrap().get(&key) {
             req = req.header(IF_NONE_MATCH, c.etag.clone());
         }
-        let resp = req.send().await.map_err(|e| ApiError::Network(e.to_string()))?;
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| ApiError::Network(e.to_string()))?;
         let headers = resp.headers().clone();
         self.record_rate(&headers);
         let status = resp.status();
@@ -184,17 +206,28 @@ impl HttpClient {
         if !status.is_success() {
             return Err(self.error_for(status, &headers));
         }
-        let body = resp.bytes().await.map_err(|e| ApiError::Network(e.to_string()))?;
+        let body = resp
+            .bytes()
+            .await
+            .map_err(|e| ApiError::Network(e.to_string()))?;
         let next = next_link(&headers);
         if let Some(etag) = header_str(&headers, "etag") {
-            self.etags.lock().unwrap().insert(key, Cached { etag: etag.to_string(), body: body.clone(), next: next.clone() });
+            self.etags.lock().unwrap().insert(
+                key,
+                Cached {
+                    etag: etag.to_string(),
+                    body: body.clone(),
+                    next: next.clone(),
+                },
+            );
         }
         Ok((body, next))
     }
 
     async fn get_json<T: DeserializeOwned>(&self, url: &Url) -> Result<T, ApiError> {
         let (body, _) = self.get_raw(url).await?;
-        serde_json::from_slice(&body).map_err(|e| ApiError::Network(format!("respuesta inválida: {e}")))
+        serde_json::from_slice(&body)
+            .map_err(|e| ApiError::Network(format!("respuesta inválida: {e}")))
     }
 
     fn runs_url(&self, w: &WatchedWorkflow, extra: &[(&str, &str)]) -> Url {
@@ -205,7 +238,10 @@ impl HttpClient {
         if let Some(e) = w.event.as_deref() {
             q.push(("event", e));
         }
-        self.url(&format!("/repos/{}/actions/workflows/{}/runs", w.repo, w.workflow_id), &q)
+        self.url(
+            &format!("/repos/{}/actions/workflows/{}/runs", w.repo, w.workflow_id),
+            &q,
+        )
     }
 }
 
@@ -219,12 +255,16 @@ impl GithubApi for HttpClient {
         let mut out = Vec::new();
         let mut next = Some(self.url(
             "/user/repos",
-            &[("affiliation", "owner,collaborator,organization_member"), ("sort", "pushed"), ("per_page", "100")],
+            &[
+                ("affiliation", "owner,collaborator,organization_member"),
+                ("sort", "pushed"),
+                ("per_page", "100"),
+            ],
         ));
         while let Some(url) = next {
             let (body, link) = self.get_raw(&url).await?;
-            let page: Vec<Repo> =
-                serde_json::from_slice(&body).map_err(|e| ApiError::Network(format!("respuesta inválida: {e}")))?;
+            let page: Vec<Repo> = serde_json::from_slice(&body)
+                .map_err(|e| ApiError::Network(format!("respuesta inválida: {e}")))?;
             out.extend(page);
             next = link.and_then(|l| Url::parse(&l).ok());
         }
@@ -232,22 +272,31 @@ impl GithubApi for HttpClient {
     }
 
     async fn get_repo(&self, full: &str) -> Result<Repo, ApiError> {
-        self.get_json(&self.url(&format!("/repos/{full}"), &[])).await
+        self.get_json(&self.url(&format!("/repos/{full}"), &[]))
+            .await
     }
 
     async fn list_workflows(&self, repo: &str) -> Result<Vec<Workflow>, ApiError> {
-        let page: WorkflowsPage =
-            self.get_json(&self.url(&format!("/repos/{repo}/actions/workflows"), &[("per_page", "100")])).await?;
+        let page: WorkflowsPage = self
+            .get_json(&self.url(
+                &format!("/repos/{repo}/actions/workflows"),
+                &[("per_page", "100")],
+            ))
+            .await?;
         Ok(page.workflows)
     }
 
     async fn latest_run(&self, w: &WatchedWorkflow) -> Result<Option<RunSnapshot>, ApiError> {
-        let page: RunsPage = self.get_json(&self.runs_url(w, &[("per_page", "1")])).await?;
+        let page: RunsPage = self
+            .get_json(&self.runs_url(w, &[("per_page", "1")]))
+            .await?;
         Ok(page.workflow_runs.into_iter().next().map(Into::into))
     }
 
     async fn recent_success_durations(&self, w: &WatchedWorkflow) -> Result<Vec<u64>, ApiError> {
-        let page: RunsPage = self.get_json(&self.runs_url(w, &[("status", "success"), ("per_page", "10")])).await?;
+        let page: RunsPage = self
+            .get_json(&self.runs_url(w, &[("status", "success"), ("per_page", "10")]))
+            .await?;
         Ok(page
             .workflow_runs
             .into_iter()
@@ -259,8 +308,12 @@ impl GithubApi for HttpClient {
     }
 
     async fn jobs(&self, repo: &str, run_id: u64) -> Result<Vec<Job>, ApiError> {
-        let page: JobsPage =
-            self.get_json(&self.url(&format!("/repos/{repo}/actions/runs/{run_id}/jobs"), &[("per_page", "100")])).await?;
+        let page: JobsPage = self
+            .get_json(&self.url(
+                &format!("/repos/{repo}/actions/runs/{run_id}/jobs"),
+                &[("per_page", "100")],
+            ))
+            .await?;
         Ok(page.jobs)
     }
 
@@ -274,8 +327,15 @@ pub fn steps_of(jobs: &[Job]) -> StepCount {
     let steps = jobs.iter().flat_map(|j| j.steps.iter());
     let total = steps.clone().count() as u32;
     let done = steps.clone().filter(|s| s.status == "completed").count() as u32;
-    let current = steps.clone().find(|s| s.status == "in_progress").map(|s| s.name.clone());
-    StepCount { done, total, current }
+    let current = steps
+        .clone()
+        .find(|s| s.status == "in_progress")
+        .map(|s| s.name.clone());
+    StepCount {
+        done,
+        total,
+        current,
+    }
 }
 
 pub fn failed_step(jobs: &[Job]) -> Option<String> {
@@ -323,7 +383,10 @@ mod tests {
             .await;
         let c = HttpClient::new(&server.url(), Some("t".into()));
         let run = c.latest_run(&watched()).await.unwrap().unwrap();
-        assert_eq!((run.id, run.attempt, run.status.as_str()), (9, 2, "in_progress"));
+        assert_eq!(
+            (run.id, run.attempt, run.status.as_str()),
+            (9, 2, "in_progress")
+        );
         m.assert_async().await;
     }
 
@@ -331,7 +394,10 @@ mod tests {
     async fn latest_run_empty_is_none() {
         let mut server = mockito::Server::new_async().await;
         server
-            .mock("GET", Matcher::Regex("^/repos/acme/api/actions/workflows/42/runs".into()))
+            .mock(
+                "GET",
+                Matcher::Regex("^/repos/acme/api/actions/workflows/42/runs".into()),
+            )
             .with_body(r#"{"workflow_runs":[]}"#)
             .create_async()
             .await;
@@ -378,7 +444,11 @@ mod tests {
                 }
             }
         });
-        let c = HttpClient::with_timeout(&format!("http://{addr}"), None, std::time::Duration::from_millis(300));
+        let c = HttpClient::with_timeout(
+            &format!("http://{addr}"),
+            None,
+            std::time::Duration::from_millis(300),
+        );
         let res = tokio::time::timeout(std::time::Duration::from_secs(5), c.me()).await;
         assert!(matches!(res, Ok(Err(ApiError::Network(_)))), "got {res:?}");
     }
@@ -386,7 +456,11 @@ mod tests {
     #[tokio::test]
     async fn unauthorized_maps() {
         let mut server = mockito::Server::new_async().await;
-        server.mock("GET", "/user").with_status(401).create_async().await;
+        server
+            .mock("GET", "/user")
+            .with_status(401)
+            .create_async()
+            .await;
         let c = HttpClient::new(&server.url(), Some("bad".into()));
         assert_eq!(c.me().await, Err(ApiError::Unauthorized));
     }
@@ -397,13 +471,18 @@ mod tests {
         server
             .mock("GET", "/user")
             .with_status(403)
-            .with_header("x-github-sso", "required; url=https://github.com/orgs/acme/sso?authorization_request=x")
+            .with_header(
+                "x-github-sso",
+                "required; url=https://github.com/orgs/acme/sso?authorization_request=x",
+            )
             .create_async()
             .await;
         let c = HttpClient::new(&server.url(), Some("t".into()));
         assert_eq!(
             c.me().await,
-            Err(ApiError::Sso { url: Some("https://github.com/orgs/acme/sso?authorization_request=x".into()) })
+            Err(ApiError::Sso {
+                url: Some("https://github.com/orgs/acme/sso?authorization_request=x".into())
+            })
         );
     }
 
@@ -420,13 +499,23 @@ mod tests {
         let c = HttpClient::new(&server.url(), Some("t".into()));
         let reset = DateTime::from_timestamp(1793145600, 0).unwrap();
         assert_eq!(c.me().await, Err(ApiError::RateLimited { reset_at: reset }));
-        assert_eq!(c.rate(), RateInfo { remaining: Some(0), reset_at: Some(reset) });
+        assert_eq!(
+            c.rate(),
+            RateInfo {
+                remaining: Some(0),
+                reset_at: Some(reset)
+            }
+        );
     }
 
     #[tokio::test]
     async fn not_found_maps() {
         let mut server = mockito::Server::new_async().await;
-        server.mock("GET", "/repos/acme/nope").with_status(404).create_async().await;
+        server
+            .mock("GET", "/repos/acme/nope")
+            .with_status(404)
+            .create_async()
+            .await;
         let c = HttpClient::new(&server.url(), None);
         assert_eq!(c.get_repo("acme/nope").await, Err(ApiError::NotFound));
     }
@@ -437,7 +526,10 @@ mod tests {
         let next = format!("<{}/user/repos?page=2>; rel=\"next\"", server.url());
         server
             .mock("GET", "/user/repos")
-            .match_query(Matcher::UrlEncoded("affiliation".into(), "owner,collaborator,organization_member".into()))
+            .match_query(Matcher::UrlEncoded(
+                "affiliation".into(),
+                "owner,collaborator,organization_member".into(),
+            ))
             .with_header("link", &next)
             .with_body(r#"[{"full_name":"acme/api","private":true,"default_branch":"main"}]"#)
             .create_async()
@@ -449,7 +541,13 @@ mod tests {
             .create_async()
             .await;
         let c = HttpClient::new(&server.url(), Some("t".into()));
-        let names: Vec<_> = c.list_repos().await.unwrap().into_iter().map(|r| r.full_name).collect();
+        let names: Vec<_> = c
+            .list_repos()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|r| r.full_name)
+            .collect();
         assert_eq!(names, vec!["acme/api", "luis/blog"]);
     }
 
@@ -470,11 +568,19 @@ mod tests {
             .create_async()
             .await;
         let c = HttpClient::new(&server.url(), None);
-        assert_eq!(c.recent_success_durations(&watched()).await.unwrap(), vec![300, 120]);
+        assert_eq!(
+            c.recent_success_durations(&watched()).await.unwrap(),
+            vec![300, 120]
+        );
     }
 
     fn step(n: u32, name: &str, status: &str, conclusion: Option<&str>) -> Step {
-        Step { name: name.into(), status: status.into(), conclusion: conclusion.map(Into::into), number: n }
+        Step {
+            name: name.into(),
+            status: status.into(),
+            conclusion: conclusion.map(Into::into),
+            number: n,
+        }
     }
 
     #[test]
@@ -492,10 +598,20 @@ mod tests {
             Job {
                 status: "in_progress".into(),
                 conclusion: None,
-                steps: vec![step(1, "Build", "in_progress", None), step(2, "Push", "queued", None)],
+                steps: vec![
+                    step(1, "Build", "in_progress", None),
+                    step(2, "Push", "queued", None),
+                ],
             },
         ];
-        assert_eq!(steps_of(&jobs), StepCount { done: 2, total: 5, current: Some("Build".into()) });
+        assert_eq!(
+            steps_of(&jobs),
+            StepCount {
+                done: 2,
+                total: 5,
+                current: Some("Build".into())
+            }
+        );
         assert_eq!(failed_step(&jobs).as_deref(), Some("Run migrations"));
     }
 }

@@ -1,6 +1,6 @@
-use crate::github::{failed_step, steps_of, ApiError, GithubApi, Job, RateInfo};
+use crate::github::{ApiError, GithubApi, Job, RateInfo, failed_step, steps_of};
 use crate::model::{Card, Config, Light, RepoGroup, RunSnapshot, WatchedWorkflow};
-use crate::notify_rules::{decide, NotifyKind, Seen};
+use crate::notify_rules::{NotifyKind, Seen, decide};
 use crate::progress::{estimate, median_secs, step_label};
 use crate::status::{is_running, label_for, light_for};
 use chrono::{DateTime, Utc};
@@ -26,7 +26,12 @@ pub struct PollerState {
 
 impl PollerState {
     pub fn new() -> Self {
-        Self { seen: HashMap::new(), medians: HashMap::new(), failures: HashMap::new(), first_poll: true }
+        Self {
+            seen: HashMap::new(),
+            medians: HashMap::new(),
+            failures: HashMap::new(),
+            first_poll: true,
+        }
     }
 }
 
@@ -58,7 +63,12 @@ fn empty_card(w: &WatchedWorkflow) -> Card {
     }
 }
 
-pub async fn run_cycle<A: GithubApi>(api: &A, cfg: &Config, st: &mut PollerState, now: DateTime<Utc>) -> CycleOutput {
+pub async fn run_cycle<A: GithubApi>(
+    api: &A,
+    cfg: &Config,
+    st: &mut PollerState,
+    now: DateTime<Utc>,
+) -> CycleOutput {
     let mut groups: Vec<RepoGroup> = Vec::new();
     let mut notifications = Vec::new();
     let mut auth_error = None;
@@ -72,7 +82,9 @@ pub async fn run_cycle<A: GithubApi>(api: &A, cfg: &Config, st: &mut PollerState
         requests += 1;
         match api.latest_run(w).await {
             Err(e) => {
-                if matches!(e, ApiError::Unauthorized | ApiError::Sso { .. }) && auth_error.is_none() {
+                if matches!(e, ApiError::Unauthorized | ApiError::Sso { .. })
+                    && auth_error.is_none()
+                {
                     auth_error = Some(e.clone());
                 }
                 card.error = Some(e.message());
@@ -88,13 +100,20 @@ pub async fn run_cycle<A: GithubApi>(api: &A, cfg: &Config, st: &mut PollerState
                     any_running = true;
                     if st.medians.get(&key).map(|(id, _)| *id) != Some(run.id) {
                         requests += 1;
-                        let median = api.recent_success_durations(w).await.ok().and_then(|d| median_secs(&d));
+                        let median = api
+                            .recent_success_durations(w)
+                            .await
+                            .ok()
+                            .and_then(|d| median_secs(&d));
                         st.medians.insert(key.clone(), (run.id, median));
                     }
                     let median = st.medians.get(&key).and_then(|(_, m)| *m);
                     requests += 1;
                     let steps = api.jobs(&w.repo, run.id).await.ok().map(|j| steps_of(&j));
-                    let elapsed = card.started_at.map(|s| (now - s).num_seconds().max(0) as u64).unwrap_or(0);
+                    let elapsed = card
+                        .started_at
+                        .map(|s| (now - s).num_seconds().max(0) as u64)
+                        .unwrap_or(0);
                     card.progress = estimate(elapsed, median, steps.as_ref());
                     card.expected_secs = median;
                     card.step_label = steps.as_ref().and_then(step_label);
@@ -105,7 +124,11 @@ pub async fn run_cycle<A: GithubApi>(api: &A, cfg: &Config, st: &mut PollerState
                         let id = (run.id, run.attempt);
                         if st.failures.get(&key).map(|(k, _)| *k) != Some(id) {
                             requests += 1;
-                            let step = api.jobs(&w.repo, run.id).await.ok().and_then(|j: Vec<Job>| failed_step(&j));
+                            let step = api
+                                .jobs(&w.repo, run.id)
+                                .await
+                                .ok()
+                                .and_then(|j: Vec<Job>| failed_step(&j));
                             st.failures.insert(key.clone(), (id, step));
                         }
                         card.failed_step = st.failures.get(&key).and_then(|(_, s)| s.clone());
@@ -125,7 +148,10 @@ pub async fn run_cycle<A: GithubApi>(api: &A, cfg: &Config, st: &mut PollerState
         }
         match groups.iter_mut().find(|g| g.repo == w.repo) {
             Some(g) => g.cards.push(card),
-            None => groups.push(RepoGroup { repo: w.repo.clone(), cards: vec![card] }),
+            None => groups.push(RepoGroup {
+                repo: w.repo.clone(),
+                cards: vec![card],
+            }),
         }
     }
     st.first_poll = false;
@@ -159,7 +185,11 @@ pub fn notification_text(
         NotifyKind::Failed => "❌",
         NotifyKind::Started => "🟡",
     };
-    let title = format!("{icon} {} · {}", w.workflow_name, w.branch.as_deref().unwrap_or("cualquiera"));
+    let title = format!(
+        "{icon} {} · {}",
+        w.workflow_name,
+        w.branch.as_deref().unwrap_or("cualquiera")
+    );
     let start = run.run_started_at.unwrap_or(run.created_at);
     let duration = fmt_duration((run.updated_at - start).num_seconds().max(0) as u64);
     let body = match (kind, failed_step) {
@@ -178,7 +208,11 @@ pub struct Banner {
 }
 
 /// `stretched_to` is the poll interval when the rate budget forced it above its base.
-fn banner_for(auth_error: Option<&ApiError>, has_token: bool, stretched_to: Option<std::time::Duration>) -> Banner {
+fn banner_for(
+    auth_error: Option<&ApiError>,
+    has_token: bool,
+    stretched_to: Option<std::time::Duration>,
+) -> Banner {
     let text = |s: &str| Some(s.to_string());
     match auth_error {
         Some(ApiError::Sso { url }) => Banner {
@@ -186,13 +220,21 @@ fn banner_for(auth_error: Option<&ApiError>, has_token: bool, stretched_to: Opti
             url: url.clone(),
         },
         Some(ApiError::Unauthorized) => Banner {
-            text: text("Sesión de GitHub inválida: revisa `gh auth login` o el token en Repos y workflows…"),
+            text: text(
+                "Sesión de GitHub inválida: revisa `gh auth login` o el token en Repos y workflows…",
+            ),
             url: None,
         },
-        _ if !has_token => Banner { text: text("Sin token: solo repos públicos, actualizando cada 5 min"), url: None },
+        _ if !has_token => Banner {
+            text: text("Sin token: solo repos públicos, actualizando cada 5 min"),
+            url: None,
+        },
         _ => match stretched_to {
             Some(d) => Banner {
-                text: Some(format!("Límite de la API bajo: actualizando cada {} min", (d.as_secs() + 59) / 60)),
+                text: Some(format!(
+                    "Límite de la API bajo: actualizando cada {} min",
+                    d.as_secs().div_ceil(60)
+                )),
                 url: None,
             },
             None => Banner::default(),
@@ -231,7 +273,9 @@ pub fn start(app: tauri::AppHandle) {
             }
             let cfg = ctx.cfg.read().unwrap().clone();
             let now = Utc::now();
-            let Ok(out) = tokio::time::timeout(CYCLE_TIMEOUT, run_cycle(&*ctx.api, &cfg, &mut st, now)).await else {
+            let Ok(out) =
+                tokio::time::timeout(CYCLE_TIMEOUT, run_cycle(&*ctx.api, &cfg, &mut st, now)).await
+            else {
                 next_due = SystemTime::now() + Duration::from_secs(15);
                 continue;
             };
@@ -253,15 +297,36 @@ pub fn start(app: tauri::AppHandle) {
             }
 
             let has_token = ctx.api.has_token();
-            let lights: Vec<Light> = out.groups.iter().flat_map(|g| g.cards.iter().map(|c| c.light)).collect();
+            let lights: Vec<Light> = out
+                .groups
+                .iter()
+                .flat_map(|g| g.cards.iter().map(|c| c.light))
+                .collect();
             let overall = crate::status::aggregate(&lights);
-            let ring = (overall == Light::Yellow).then_some(out.min_running_progress.unwrap_or(0.0));
+            let ring =
+                (overall == Light::Yellow).then_some(out.min_running_progress.unwrap_or(0.0));
             crate::tray::set_icon(&app, overall, ring);
 
             let rate = ctx.api.rate();
-            let wait = crate::interval::next_interval(out.any_running, has_token, &rate, now, out.requests.max(1));
-            let base = crate::interval::next_interval(out.any_running, has_token, &RateInfo::default(), now, 1);
-            let banner = banner_for(out.auth_error.as_ref(), has_token, (wait > base).then_some(wait));
+            let wait = crate::interval::next_interval(
+                out.any_running,
+                has_token,
+                &rate,
+                now,
+                out.requests.max(1),
+            );
+            let base = crate::interval::next_interval(
+                out.any_running,
+                has_token,
+                &RateInfo::default(),
+                now,
+                1,
+            );
+            let banner = banner_for(
+                out.auth_error.as_ref(),
+                has_token,
+                (wait > base).then_some(wait),
+            );
 
             let dashboard = crate::model::DashboardState {
                 groups: out.groups,
@@ -274,7 +339,8 @@ pub fn start(app: tauri::AppHandle) {
             let _ = app.emit("dashboard", &dashboard);
 
             for n in &out.notifications {
-                let (title, body) = notification_text(&n.watched, &n.run, n.kind, n.failed_step.as_deref());
+                let (title, body) =
+                    notification_text(&n.watched, &n.run, n.kind, n.failed_step.as_deref());
                 let _ = app.notification().builder().title(title).body(body).show();
             }
 
@@ -289,8 +355,8 @@ mod tests {
     use crate::github::{Repo, Step, Workflow};
     use crate::model::NotifyPrefs;
     use std::collections::HashMap;
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicU32, Ordering};
 
     #[derive(Default)]
     struct FakeApi {
@@ -320,14 +386,28 @@ mod tests {
             Ok(vec![])
         }
         async fn latest_run(&self, w: &WatchedWorkflow) -> Result<Option<RunSnapshot>, ApiError> {
-            self.runs.lock().unwrap().get(&w.key()).cloned().unwrap_or(Ok(None))
+            self.runs
+                .lock()
+                .unwrap()
+                .get(&w.key())
+                .cloned()
+                .unwrap_or(Ok(None))
         }
-        async fn recent_success_durations(&self, _: &WatchedWorkflow) -> Result<Vec<u64>, ApiError> {
+        async fn recent_success_durations(
+            &self,
+            _: &WatchedWorkflow,
+        ) -> Result<Vec<u64>, ApiError> {
             self.duration_calls.fetch_add(1, Ordering::SeqCst);
             Ok(self.durations.clone())
         }
         async fn jobs(&self, _: &str, run_id: u64) -> Result<Vec<Job>, ApiError> {
-            Ok(self.jobs.lock().unwrap().get(&run_id).cloned().unwrap_or_default())
+            Ok(self
+                .jobs
+                .lock()
+                .unwrap()
+                .get(&run_id)
+                .cloned()
+                .unwrap_or_default())
         }
         fn rate(&self) -> RateInfo {
             RateInfo::default()
@@ -359,7 +439,10 @@ mod tests {
     }
 
     fn cfg(w: Vec<WatchedWorkflow>) -> Config {
-        Config { watched: w, autostart: true }
+        Config {
+            watched: w,
+            autostart: true,
+        }
     }
 
     #[tokio::test]
@@ -377,7 +460,10 @@ mod tests {
     #[tokio::test]
     async fn running_then_success_notifies_once() {
         let now = Utc::now();
-        let api = FakeApi { durations: vec![200], ..Default::default() };
+        let api = FakeApi {
+            durations: vec![200],
+            ..Default::default()
+        };
         let w = wf("acme/api", 1);
         let c = cfg(vec![w.clone()]);
         let mut st = PollerState::new();
@@ -424,14 +510,23 @@ mod tests {
         api.set_run(&w, Ok(Some(run(5, "completed", Some("failure"), now))));
         let out = run_cycle(&api, &c, &mut st, now).await;
         assert_eq!(out.notifications[0].kind, NotifyKind::Failed);
-        assert_eq!(out.notifications[0].failed_step.as_deref(), Some("Run migrations"));
-        assert_eq!(out.groups[0].cards[0].failed_step.as_deref(), Some("Run migrations"));
+        assert_eq!(
+            out.notifications[0].failed_step.as_deref(),
+            Some("Run migrations")
+        );
+        assert_eq!(
+            out.groups[0].cards[0].failed_step.as_deref(),
+            Some("Run migrations")
+        );
     }
 
     #[tokio::test]
     async fn median_fetched_once_per_run() {
         let now = Utc::now();
-        let api = FakeApi { durations: vec![300], ..Default::default() };
+        let api = FakeApi {
+            durations: vec![300],
+            ..Default::default()
+        };
         let w = wf("acme/api", 1);
         let c = cfg(vec![w.clone()]);
         let mut st = PollerState::new();
@@ -473,7 +568,9 @@ mod tests {
         let now = Utc::now();
         let api = FakeApi::default();
         let a = wf("acme/api", 1);
-        let sso = ApiError::Sso { url: Some("https://github.com/orgs/acme/sso".into()) };
+        let sso = ApiError::Sso {
+            url: Some("https://github.com/orgs/acme/sso".into()),
+        };
         api.set_run(&a, Err(sso.clone()));
         let out = run_cycle(&api, &cfg(vec![a]), &mut PollerState::new(), now).await;
         assert_eq!(out.auth_error, Some(sso));
@@ -483,24 +580,40 @@ mod tests {
     async fn groups_by_repo_in_config_order() {
         let now = Utc::now();
         let api = FakeApi::default();
-        let c = cfg(vec![wf("acme/web", 1), wf("acme/api", 2), wf("acme/web", 3)]);
+        let c = cfg(vec![
+            wf("acme/web", 1),
+            wf("acme/api", 2),
+            wf("acme/web", 3),
+        ]);
         let out = run_cycle(&api, &c, &mut PollerState::new(), now).await;
-        let repos: Vec<_> = out.groups.iter().map(|g| (g.repo.as_str(), g.cards.len())).collect();
+        let repos: Vec<_> = out
+            .groups
+            .iter()
+            .map(|g| (g.repo.as_str(), g.cards.len()))
+            .collect();
         assert_eq!(repos, vec![("acme/web", 2), ("acme/api", 1)]);
     }
 
     #[test]
     fn sso_banner_carries_clickable_url() {
-        let sso = ApiError::Sso { url: Some("https://github.com/orgs/acme/sso?x=1".into()) };
+        let sso = ApiError::Sso {
+            url: Some("https://github.com/orgs/acme/sso?x=1".into()),
+        };
         let b = banner_for(Some(&sso), true, None);
-        assert_eq!(b.url.as_deref(), Some("https://github.com/orgs/acme/sso?x=1"));
+        assert_eq!(
+            b.url.as_deref(),
+            Some("https://github.com/orgs/acme/sso?x=1")
+        );
         assert!(b.text.unwrap().contains("Autoriza el token"));
     }
 
     #[test]
     fn stretched_interval_explains_rate_limit() {
         let b = banner_for(None, true, Some(std::time::Duration::from_secs(300)));
-        assert_eq!(b.text.as_deref(), Some("Límite de la API bajo: actualizando cada 5 min"));
+        assert_eq!(
+            b.text.as_deref(),
+            Some("Límite de la API bajo: actualizando cada 5 min")
+        );
         assert_eq!(b.url, None);
     }
 
@@ -525,14 +638,26 @@ mod tests {
         r.run_started_at = Some(now - chrono::Duration::seconds(291));
         assert_eq!(
             notification_text(&w, &r, NotifyKind::Succeeded, None),
-            ("✅ WF1 · release".to_string(), "acme/api · 4m 51s".to_string())
+            (
+                "✅ WF1 · release".to_string(),
+                "acme/api · 4m 51s".to_string()
+            )
         );
         assert_eq!(
             notification_text(&w, &r, NotifyKind::Failed, Some("Run migrations")).1,
             "acme/api · falló en Run migrations"
         );
-        let any = WatchedWorkflow { branch: None, ..w.clone() };
-        assert_eq!(notification_text(&any, &r, NotifyKind::Started, None).0, "🟡 WF1 · cualquiera");
-        assert_eq!(notification_text(&any, &r, NotifyKind::Started, None).1, "acme/api · empezó");
+        let any = WatchedWorkflow {
+            branch: None,
+            ..w.clone()
+        };
+        assert_eq!(
+            notification_text(&any, &r, NotifyKind::Started, None).0,
+            "🟡 WF1 · cualquiera"
+        );
+        assert_eq!(
+            notification_text(&any, &r, NotifyKind::Started, None).1,
+            "acme/api · empezó"
+        );
     }
 }

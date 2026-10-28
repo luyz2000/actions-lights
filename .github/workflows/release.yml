@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    name: macOS (universal)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: El tag coincide con la versión de la app
+        run: |
+          app=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if [ "v$app" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::El tag $GITHUB_REF_NAME no coincide con la versión $app de tauri.conf.json"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Notas del release
+        id: notes
+        run: |
+          file=".github/release-notes/$GITHUB_REF_NAME.md"
+          [ -f "$file" ] || file=/dev/null
+          {
+            echo "body<<__NOTES__"
+            cat "$file"
+            echo "__NOTES__"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Actions Lights ${{ github.ref_name }}
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: false
+          prerelease: false
+          args: --target universal-apple-darwin

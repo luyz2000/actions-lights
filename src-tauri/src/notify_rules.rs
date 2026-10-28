@@ -78,7 +78,12 @@ mod tests {
     }
 
     fn seen(run_id: u64, attempt: u32, light: Light, running: bool) -> Seen {
-        Seen { run_id, attempt, light, running }
+        Seen {
+            run_id,
+            attempt,
+            light,
+            running,
+        }
     }
 
     fn prefs() -> NotifyPrefs {
@@ -87,7 +92,12 @@ mod tests {
 
     #[test]
     fn first_poll_is_silent() {
-        let (s, n) = decide(None, &snap(1, 1, "completed", Some("success")), true, &prefs());
+        let (s, n) = decide(
+            None,
+            &snap(1, 1, "completed", Some("success")),
+            true,
+            &prefs(),
+        );
         assert_eq!(n, None);
         assert_eq!(s, seen(1, 1, Light::Green, false));
     }
@@ -95,35 +105,60 @@ mod tests {
     #[test]
     fn running_to_success_notifies() {
         let prev = seen(1, 1, Light::Yellow, true);
-        let (_, n) = decide(Some(&prev), &snap(1, 1, "completed", Some("success")), false, &prefs());
+        let (_, n) = decide(
+            Some(&prev),
+            &snap(1, 1, "completed", Some("success")),
+            false,
+            &prefs(),
+        );
         assert_eq!(n, Some(NotifyKind::Succeeded));
     }
 
     #[test]
     fn queued_to_failure_unseen_running_notifies() {
         let prev = seen(1, 1, Light::Green, false);
-        let (_, n) = decide(Some(&prev), &snap(2, 1, "completed", Some("failure")), false, &prefs());
+        let (_, n) = decide(
+            Some(&prev),
+            &snap(2, 1, "completed", Some("failure")),
+            false,
+            &prefs(),
+        );
         assert_eq!(n, Some(NotifyKind::Failed));
     }
 
     #[test]
     fn newly_watched_completed_run_is_silent() {
         // Workflow added to config mid-session: first sighting already completed.
-        let (_, n) = decide(None, &snap(5, 1, "completed", Some("success")), false, &prefs());
+        let (_, n) = decide(
+            None,
+            &snap(5, 1, "completed", Some("success")),
+            false,
+            &prefs(),
+        );
         assert_eq!(n, None);
     }
 
     #[test]
     fn same_completed_run_does_not_repeat() {
         let prev = seen(2, 1, Light::Red, false);
-        let (_, n) = decide(Some(&prev), &snap(2, 1, "completed", Some("failure")), false, &prefs());
+        let (_, n) = decide(
+            Some(&prev),
+            &snap(2, 1, "completed", Some("failure")),
+            false,
+            &prefs(),
+        );
         assert_eq!(n, None);
     }
 
     #[test]
     fn rerun_failure_notifies_again() {
         let prev = seen(2, 1, Light::Red, false);
-        let (s, n) = decide(Some(&prev), &snap(2, 2, "completed", Some("failure")), false, &prefs());
+        let (s, n) = decide(
+            Some(&prev),
+            &snap(2, 2, "completed", Some("failure")),
+            false,
+            &prefs(),
+        );
         assert_eq!(n, Some(NotifyKind::Failed));
         assert_eq!(s.attempt, 2);
     }
@@ -131,7 +166,12 @@ mod tests {
     #[test]
     fn cancelled_is_silent() {
         let prev = seen(3, 1, Light::Yellow, true);
-        let (_, n) = decide(Some(&prev), &snap(3, 1, "completed", Some("cancelled")), false, &prefs());
+        let (_, n) = decide(
+            Some(&prev),
+            &snap(3, 1, "completed", Some("cancelled")),
+            false,
+            &prefs(),
+        );
         assert_eq!(n, None);
     }
 
@@ -140,28 +180,64 @@ mod tests {
         let prev = seen(1, 1, Light::Green, false);
         let current = snap(2, 1, "in_progress", None);
         assert_eq!(decide(Some(&prev), &current, false, &prefs()).1, None);
-        let on = NotifyPrefs { on_start: true, ..prefs() };
-        assert_eq!(decide(Some(&prev), &current, false, &on).1, Some(NotifyKind::Started));
+        let on = NotifyPrefs {
+            on_start: true,
+            ..prefs()
+        };
+        assert_eq!(
+            decide(Some(&prev), &current, false, &on).1,
+            Some(NotifyKind::Started)
+        );
     }
 
     #[test]
     fn still_running_does_not_restart() {
-        let on = NotifyPrefs { on_start: true, ..prefs() };
+        let on = NotifyPrefs {
+            on_start: true,
+            ..prefs()
+        };
         let prev = seen(2, 1, Light::Yellow, true);
-        assert_eq!(decide(Some(&prev), &snap(2, 1, "in_progress", None), false, &on).1, None);
+        assert_eq!(
+            decide(Some(&prev), &snap(2, 1, "in_progress", None), false, &on).1,
+            None
+        );
     }
 
     #[test]
     fn success_respects_prefs() {
         let prev = seen(1, 1, Light::Yellow, true);
-        let off = NotifyPrefs { on_success: false, ..prefs() };
-        assert_eq!(decide(Some(&prev), &snap(1, 1, "completed", Some("success")), false, &off).1, None);
+        let off = NotifyPrefs {
+            on_success: false,
+            ..prefs()
+        };
+        assert_eq!(
+            decide(
+                Some(&prev),
+                &snap(1, 1, "completed", Some("success")),
+                false,
+                &off
+            )
+            .1,
+            None
+        );
     }
 
     #[test]
     fn failure_respects_prefs() {
         let prev = seen(1, 1, Light::Yellow, true);
-        let off = NotifyPrefs { on_failure: false, ..prefs() };
-        assert_eq!(decide(Some(&prev), &snap(1, 1, "completed", Some("failure")), false, &off).1, None);
+        let off = NotifyPrefs {
+            on_failure: false,
+            ..prefs()
+        };
+        assert_eq!(
+            decide(
+                Some(&prev),
+                &snap(1, 1, "completed", Some("failure")),
+                false,
+                &off
+            )
+            .1,
+            None
+        );
     }
 }

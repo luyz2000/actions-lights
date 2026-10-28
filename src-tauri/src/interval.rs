@@ -37,30 +37,60 @@ mod tests {
     #[test]
     fn base_intervals() {
         let now = Utc::now();
-        assert_eq!(next_interval(true, true, &none(), now, 3), Duration::from_secs(15));
-        assert_eq!(next_interval(false, true, &none(), now, 3), Duration::from_secs(60));
-        assert_eq!(next_interval(false, false, &none(), now, 3), Duration::from_secs(300));
-        assert_eq!(next_interval(true, false, &none(), now, 3), Duration::from_secs(300));
+        assert_eq!(
+            next_interval(true, true, &none(), now, 3),
+            Duration::from_secs(15)
+        );
+        assert_eq!(
+            next_interval(false, true, &none(), now, 3),
+            Duration::from_secs(60)
+        );
+        assert_eq!(
+            next_interval(false, false, &none(), now, 3),
+            Duration::from_secs(300)
+        );
+        assert_eq!(
+            next_interval(true, false, &none(), now, 3),
+            Duration::from_secs(300)
+        );
     }
 
     #[test]
     fn spreads_when_low_remaining() {
         let now = Utc::now();
-        let rate = RateInfo { remaining: Some(10), reset_at: Some(now + chrono::Duration::seconds(600)) };
-        assert_eq!(next_interval(true, true, &rate, now, 5), Duration::from_secs(300));
+        let rate = RateInfo {
+            remaining: Some(10),
+            reset_at: Some(now + chrono::Duration::seconds(600)),
+        };
+        assert_eq!(
+            next_interval(true, true, &rate, now, 5),
+            Duration::from_secs(300)
+        );
     }
 
     #[test]
     fn plenty_of_budget_keeps_base() {
         let now = Utc::now();
-        let rate = RateInfo { remaining: Some(4000), reset_at: Some(now + chrono::Duration::seconds(600)) };
-        assert_eq!(next_interval(true, true, &rate, now, 5), Duration::from_secs(15));
+        let rate = RateInfo {
+            remaining: Some(4000),
+            reset_at: Some(now + chrono::Duration::seconds(600)),
+        };
+        assert_eq!(
+            next_interval(true, true, &rate, now, 5),
+            Duration::from_secs(15)
+        );
     }
 
     #[test]
     fn exhausted_waits_until_reset() {
         let now = Utc::now();
-        let rate = RateInfo { remaining: Some(0), reset_at: Some(now + chrono::Duration::seconds(900)) };
-        assert_eq!(next_interval(true, true, &rate, now, 1), Duration::from_secs(900));
+        let rate = RateInfo {
+            remaining: Some(0),
+            reset_at: Some(now + chrono::Duration::seconds(900)),
+        };
+        assert_eq!(
+            next_interval(true, true, &rate, now, 1),
+            Duration::from_secs(900)
+        );
     }
 }

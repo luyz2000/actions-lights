@@ -16,7 +16,7 @@ mod tray;
 
 use app_state::AppCtx;
 use auth::KeyringStore;
-use github::{HttpClient, GITHUB_API};
+use github::{GITHUB_API, HttpClient};
 use model::DashboardState;
 use std::sync::{Arc, RwLock};
 use tauri::Manager;
@@ -30,7 +30,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_positioner::init())
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))
         .invoke_handler(tauri::generate_handler![
             commands::get_dashboard,
             commands::refresh_now,
@@ -61,8 +64,12 @@ pub fn run() {
             app.manage(AppCtx {
                 cfg: RwLock::new(cfg),
                 api: Arc::new(HttpClient::new(GITHUB_API, None)),
-                manual: KeyringStore { account: auth::MANUAL_ACCOUNT },
-                oauth: KeyringStore { account: auth::OAUTH_ACCOUNT },
+                manual: KeyringStore {
+                    account: auth::MANUAL_ACCOUNT,
+                },
+                oauth: KeyringStore {
+                    account: auth::OAUTH_ACCOUNT,
+                },
                 dashboard: RwLock::new(DashboardState::default()),
                 auth: RwLock::new(model::AuthStatus::none()),
                 wake: Arc::new(tokio::sync::Notify::new()),

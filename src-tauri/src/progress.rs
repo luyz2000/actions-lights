@@ -14,7 +14,11 @@ pub fn median_secs(durations: &[u64]) -> Option<u64> {
     let mut v = durations.to_vec();
     v.sort_unstable();
     let mid = v.len() / 2;
-    Some(if v.len() % 2 == 0 { (v[mid - 1] + v[mid]) / 2 } else { v[mid] })
+    Some(if v.len().is_multiple_of(2) {
+        (v[mid - 1] + v[mid]) / 2
+    } else {
+        v[mid]
+    })
 }
 
 /// Time against the typical duration when history exists (smoother), else step fraction.
@@ -58,28 +62,44 @@ mod tests {
 
     #[test]
     fn steps_fallback() {
-        let s = StepCount { done: 4, total: 8, current: Some("Build image".into()) };
+        let s = StepCount {
+            done: 4,
+            total: 8,
+            current: Some("Build image".into()),
+        };
         assert_eq!(estimate(10, None, Some(&s)), Some(0.5));
         assert_eq!(step_label(&s).as_deref(), Some("Paso 5/8 · Build image"));
     }
 
     #[test]
     fn steps_capped_and_label_without_current() {
-        let s = StepCount { done: 8, total: 8, current: None };
+        let s = StepCount {
+            done: 8,
+            total: 8,
+            current: None,
+        };
         assert_eq!(estimate(10, None, Some(&s)), Some(0.95));
         assert_eq!(step_label(&s).as_deref(), Some("Paso 8/8"));
     }
 
     #[test]
     fn zero_total_steps_is_unknown() {
-        let s = StepCount { done: 0, total: 0, current: None };
+        let s = StepCount {
+            done: 0,
+            total: 0,
+            current: None,
+        };
         assert_eq!(estimate(10, None, Some(&s)), None);
         assert_eq!(step_label(&s), None);
     }
 
     #[test]
     fn time_wins_over_steps() {
-        let s = StepCount { done: 1, total: 10, current: None };
+        let s = StepCount {
+            done: 1,
+            total: 10,
+            current: None,
+        };
         assert_eq!(estimate(150, Some(300), Some(&s)), Some(0.5));
     }
 
