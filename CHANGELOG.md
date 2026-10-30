@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/luyz2000/actions-lights/compare/v1.2.0...v1.3.0) (2026-10-30)
+
+
+### Novedades
+
+* in-app updates from GitHub releases with signed updater bundles ([094eedc](https://github.com/luyz2000/actions-lights/commit/094eedc85a9b52aef006f9d6f06b897f01dfd9fb))
+
 ## [1.2.0](https://github.com/luyz2000/actions-lights/compare/v1.1.1...v1.2.0) (2026-10-30)
 
 
