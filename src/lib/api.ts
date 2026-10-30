@@ -94,6 +94,11 @@ export interface UpdateInfo {
   notes: string | null;
 }
 
+export interface NotificationStatus {
+  available: boolean;
+  reason: string | null;
+}
+
 export const api = {
   getDashboard: () => invoke<DashboardState>("get_dashboard"),
   refreshNow: () => invoke<void>("refresh_now"),
@@ -113,6 +118,8 @@ export const api = {
   quit: () => invoke<void>("quit"),
   getUpdate: () => invoke<UpdateInfo | null>("get_update"),
   installUpdate: () => invoke<void>("install_update"),
+  testNotification: () => invoke<void>("test_notification"),
+  notificationsStatus: () => invoke<NotificationStatus>("notifications_status"),
 };
 
 export function onUpdate(cb: (u: UpdateInfo | null) => void): Promise<UnlistenFn> {

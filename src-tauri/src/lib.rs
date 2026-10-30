@@ -7,6 +7,7 @@ mod github;
 mod icon;
 mod interval;
 mod model;
+mod notify;
 mod notify_rules;
 mod oauth;
 mod poller;
@@ -64,6 +65,8 @@ pub fn run() {
             commands::get_update,
             commands::check_updates,
             commands::install_update,
+            commands::test_notification,
+            commands::notifications_status,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -97,6 +100,7 @@ pub fn run() {
             if first_run {
                 tray::open_settings(&handle);
             }
+            notify::init(&handle);
             if app.notification().permission_state().ok() != Some(PermissionState::Granted) {
                 let _ = app.notification().request_permission();
             }

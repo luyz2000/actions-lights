@@ -275,7 +275,6 @@ pub fn start(app: tauri::AppHandle) {
     use crate::app_state::AppCtx;
     use std::time::{Duration, SystemTime};
     use tauri::{Emitter, Manager};
-    use tauri_plugin_notification::NotificationExt;
 
     tauri::async_runtime::spawn(async move {
         let ctx = app.state::<AppCtx>();
@@ -373,11 +372,15 @@ pub fn start(app: tauri::AppHandle) {
                     n.failed_step.as_deref(),
                     n.expected_secs,
                 );
-                let mut builder = app.notification().builder().title(title).body(body);
-                if let Some(sound) = crate::notify_rules::sound_for(n.kind, cfg.sound) {
-                    builder = builder.sound(sound);
-                }
-                let _ = builder.show();
+                crate::notify::show(
+                    &app,
+                    crate::notify::Outgoing {
+                        title,
+                        body,
+                        sound: crate::notify_rules::sound_for(n.kind, cfg.sound),
+                        url: Some(n.run.html_url.clone()),
+                    },
+                );
             }
 
             next_due = SystemTime::now() + wait;

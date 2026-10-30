@@ -144,6 +144,25 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn notifications_status() -> crate::notify::NotificationStatus {
+    crate::notify::status()
+}
+
+/// Lets the user check that notifications, their sound and the click all work.
+#[tauri::command]
+pub fn test_notification(app: AppHandle) {
+    crate::notify::show(
+        &app,
+        crate::notify::Outgoing {
+            title: "✅ Notificación de prueba".into(),
+            body: "Haz clic aquí para abrir Actions Lights en GitHub".into(),
+            sound: Some("Glass"),
+            url: Some("https://github.com/luyz2000/actions-lights".into()),
+        },
+    );
+}
+
+#[tauri::command]
 pub fn quit(app: AppHandle) {
     app.exit(0);
 }

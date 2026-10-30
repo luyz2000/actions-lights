@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import "$lib/theme.css";
-  import { api, type AuthStatus, type Config, type Repo, type WatchedWorkflow, type Workflow } from "$lib/api";
+  import { api, type AuthStatus, type Config, type NotificationStatus, type Repo, type WatchedWorkflow, type Workflow } from "$lib/api";
   import Account from "./Account.svelte";
   import RepoList from "./RepoList.svelte";
   import WorkflowList from "./WorkflowList.svelte";
@@ -12,6 +12,7 @@
   let section = $state<Section>("repos");
   let cfg = $state<Config>({ watched: [], autostart: true, sound: true, filters_cleared: true });
   let auth = $state<AuthStatus | null>(null);
+  let notifications = $state<NotificationStatus | null>(null);
   let repos = $state<Repo[]>([]);
   let reposLoading = $state(true);
   let reposError = $state<string | null>(null);
@@ -108,6 +109,7 @@
   }
 
   onMount(() => {
+    api.notificationsStatus().then((n) => (notifications = n));
     Promise.all([api.getConfig(), api.authStatus()]).then(async ([c, a]) => {
       cfg = c;
       auth = a;
@@ -219,6 +221,20 @@
           </label>
           <div class="setting">
             <div>
+              <div class="label">Probar notificaciones</div>
+              <div class="muted small">Envía una notificación de ejemplo; al pulsarla se abre el enlace en GitHub.</div>
+            </div>
+            <button class="btn" disabled={notifications?.available === false} onclick={() => api.testNotification()}>Enviar notificación de prueba</button>
+          </div>
+          {#if notifications?.available === false}
+            <div class="notice">
+              <div class="label">Notificaciones en pausa</div>
+              <div class="small">macOS no permite notificaciones a esta versión de la app porque todavía no está firmada por Apple. Se activarán solas en una próxima versión firmada; mientras tanto, el semáforo y el listado siguen funcionando igual.</div>
+              {#if notifications.reason}<div class="muted small">Detalle del sistema: {notifications.reason}</div>{/if}
+            </div>
+          {/if}
+          <div class="setting">
+            <div>
               <div class="label">Frecuencia de consulta</div>
               <div class="muted small">Cada 15 s si algo está corriendo, cada 60 s en reposo y cada 5 min sin cuenta. Se espacia sola si el límite de la API baja.</div>
             </div>
@@ -249,6 +265,16 @@
     border-right: 0.5px solid var(--border);
     background: var(--surface-2);
     box-sizing: border-box;
+  }
+  .notice {
+    margin: 0 12px 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--warn-bg);
+    color: var(--warn-fg);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
   .brand {
     display: flex;
