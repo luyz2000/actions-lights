@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0](https://github.com/luyz2000/actions-lights/compare/v1.3.0...v1.4.0) (2026-10-30)
+
+
+### Novedades
+
+* native macOS notifications with click-to-open the run, paused until the app is signed by Apple ([9d6a81c](https://github.com/luyz2000/actions-lights/commit/9d6a81c4492ddbf11cc4708d80290890dbdb4f8c))
+* show the PR title or commit and who triggered each run ([66e3731](https://github.com/luyz2000/actions-lights/commit/66e3731f7f0cdd719047703d147fa12d428e256a))
+
+
+### Correcciones
+
+* keep notifications off with a coming-soon notice until the app is signed by Apple ([a3e7c48](https://github.com/luyz2000/actions-lights/commit/a3e7c4840b8274071976e584e082a3ccdb42ba8b))
+
 ## [1.3.0](https://github.com/luyz2000/actions-lights/compare/v1.2.0...v1.3.0) (2026-10-30)
 
 
