@@ -101,7 +101,9 @@ pub fn run() {
                 tray::open_settings(&handle);
             }
             notify::init(&handle);
-            if app.notification().permission_state().ok() != Some(PermissionState::Granted) {
+            if notify::NOTIFICATIONS_ENABLED
+                && app.notification().permission_state().ok() != Some(PermissionState::Granted)
+            {
                 let _ = app.notification().request_permission();
             }
 

@@ -8,6 +8,7 @@
     loading,
     error,
     onchange,
+    notificationsAvailable = true,
   }: {
     repo: Repo;
     workflows: Workflow[];
@@ -15,6 +16,7 @@
     loading: boolean;
     error: string | null;
     onchange: (workflowId: number, entry: WatchedWorkflow | null) => void;
+    notificationsAvailable?: boolean;
   } = $props();
 
   const EVENTS = ["push", "pull_request", "workflow_dispatch", "schedule"];
@@ -93,10 +95,10 @@
             </div>
           </details>
           <div class="notify">
-            <span class="muted">Avisarme</span>
-            <label><input type="checkbox" checked={entry.notify.on_success} onchange={(e) => setNotify(entry, "on_success", e.currentTarget.checked)} /> al terminar bien</label>
-            <label><input type="checkbox" checked={entry.notify.on_failure} onchange={(e) => setNotify(entry, "on_failure", e.currentTarget.checked)} /> si falla</label>
-            <label><input type="checkbox" checked={entry.notify.on_start} onchange={(e) => setNotify(entry, "on_start", e.currentTarget.checked)} /> al empezar</label>
+            <span class="muted">Avisarme{#if !notificationsAvailable}<span class="soon">Próximamente</span>{/if}</span>
+            <label><input type="checkbox" disabled={!notificationsAvailable} checked={entry.notify.on_success} onchange={(e) => setNotify(entry, "on_success", e.currentTarget.checked)} /> al terminar bien</label>
+            <label><input type="checkbox" disabled={!notificationsAvailable} checked={entry.notify.on_failure} onchange={(e) => setNotify(entry, "on_failure", e.currentTarget.checked)} /> si falla</label>
+            <label><input type="checkbox" disabled={!notificationsAvailable} checked={entry.notify.on_start} onchange={(e) => setNotify(entry, "on_start", e.currentTarget.checked)} /> al empezar</label>
           </div>
         {/if}
       </div>

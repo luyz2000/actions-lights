@@ -9,6 +9,10 @@ pub struct Outgoing {
     pub url: Option<String>,
 }
 
+/// Off until the app is signed with an Apple Developer ID: on macOS 26 an ad-hoc signed app
+/// gets no notifications at all (see docs/notificaciones-macos.md, kept out of git).
+pub const NOTIFICATIONS_ENABLED: bool = false;
+
 /// Run URLs waiting for a click, by notification id.
 static PENDING: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
 
@@ -52,11 +56,20 @@ impl NotificationStatus {
 static ANSWER: Mutex<Option<Result<(), String>>> = Mutex::new(None);
 
 pub fn status() -> NotificationStatus {
+    if !NOTIFICATIONS_ENABLED {
+        return NotificationStatus {
+            available: false,
+            reason: None,
+        };
+    }
     NotificationStatus::from_answer(ANSWER.lock().unwrap().clone())
 }
 
 /// Sets up native notifications (permission prompt, click handling) where available.
 pub fn init(app: &AppHandle) {
+    if !NOTIFICATIONS_ENABLED {
+        return;
+    }
     #[cfg(target_os = "macos")]
     mac::init(app);
     #[cfg(not(target_os = "macos"))]
@@ -64,6 +77,9 @@ pub fn init(app: &AppHandle) {
 }
 
 pub fn show(app: &AppHandle, n: Outgoing) {
+    if !NOTIFICATIONS_ENABLED {
+        return;
+    }
     #[cfg(target_os = "macos")]
     if mac::ready() {
         mac::show(n);

@@ -190,6 +190,7 @@
                 loading={wfLoading}
                 error={wfError}
                 onchange={(id, entry) => changeWatched(selected!.full_name, id, entry)}
+                notificationsAvailable={notifications?.available !== false}
               />
             {:else}
               <p class="muted hint">Elige un repo para ver sus workflows.</p>
@@ -214,25 +215,18 @@
           </label>
           <label class="setting" for="sound">
             <div>
-              <div class="label">Sonido en notificaciones</div>
+              <div class="label">Sonido en notificaciones {#if notifications?.available === false}<span class="soon">Próximamente</span>{/if}</div>
               <div class="muted small">Un sonido distinto cuando un workflow termina bien y cuando falla.</div>
             </div>
-            <input id="sound" class="switch" type="checkbox" bind:checked={cfg.sound} onchange={save} />
+            <input id="sound" class="switch" type="checkbox" bind:checked={cfg.sound} onchange={save} disabled={notifications?.available === false} />
           </label>
           <div class="setting">
             <div>
-              <div class="label">Probar notificaciones</div>
+              <div class="label">Probar notificaciones {#if notifications?.available === false}<span class="soon">Próximamente</span>{/if}</div>
               <div class="muted small">Envía una notificación de ejemplo; al pulsarla se abre el enlace en GitHub.</div>
             </div>
             <button class="btn" disabled={notifications?.available === false} onclick={() => api.testNotification()}>Enviar notificación de prueba</button>
           </div>
-          {#if notifications?.available === false}
-            <div class="notice">
-              <div class="label">Notificaciones en pausa</div>
-              <div class="small">macOS no permite notificaciones a esta versión de la app porque todavía no está firmada por Apple. Se activarán solas en una próxima versión firmada; mientras tanto, el semáforo y el listado siguen funcionando igual.</div>
-              {#if notifications.reason}<div class="muted small">Detalle del sistema: {notifications.reason}</div>{/if}
-            </div>
-          {/if}
           <div class="setting">
             <div>
               <div class="label">Frecuencia de consulta</div>
@@ -266,15 +260,15 @@
     background: var(--surface-2);
     box-sizing: border-box;
   }
-  .notice {
-    margin: 0 12px 12px;
-    padding: 10px 12px;
-    border-radius: 8px;
-    background: var(--warn-bg);
-    color: var(--warn-fg);
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+  :global(.soon) {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 600;
+    vertical-align: middle;
   }
   .brand {
     display: flex;
