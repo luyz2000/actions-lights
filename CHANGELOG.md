@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/luyz2000/actions-lights/compare/v1.4.0...v1.5.0) (2026-10-30)
+
+
+### Novedades
+
+* show the installed version and a check-for-updates button in Settings › General ([05f64d5](https://github.com/luyz2000/actions-lights/commit/05f64d5e2cc83db10b048284c37432966c1cf46c))
+
 ## [1.4.0](https://github.com/luyz2000/actions-lights/compare/v1.3.0...v1.4.0) (2026-10-30)
 
 
