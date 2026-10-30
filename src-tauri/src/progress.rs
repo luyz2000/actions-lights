@@ -43,6 +43,10 @@ pub fn step_label(steps: &StepCount) -> Option<String> {
     })
 }
 
+pub fn step_short(steps: &StepCount) -> Option<String> {
+    (steps.total > 0).then(|| format!("{}/{}", (steps.done + 1).min(steps.total), steps.total))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -80,6 +84,22 @@ mod tests {
         };
         assert_eq!(estimate(10, None, Some(&s)), Some(0.95));
         assert_eq!(step_label(&s).as_deref(), Some("Paso 8/8"));
+    }
+
+    #[test]
+    fn step_short_is_position_only() {
+        let s = StepCount {
+            done: 2,
+            total: 5,
+            current: Some("Build".into()),
+        };
+        assert_eq!(step_short(&s).as_deref(), Some("3/5"));
+        let none = StepCount {
+            done: 0,
+            total: 0,
+            current: None,
+        };
+        assert_eq!(step_short(&none), None);
     }
 
     #[test]

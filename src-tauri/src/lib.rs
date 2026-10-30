@@ -13,6 +13,7 @@ mod poller;
 mod progress;
 mod status;
 mod tray;
+mod tray_text;
 
 use app_state::AppCtx;
 use auth::KeyringStore;

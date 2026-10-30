@@ -59,6 +59,8 @@ pub struct Config {
     pub watched: Vec<WatchedWorkflow>,
     #[serde(default = "default_true")]
     pub autostart: bool,
+    #[serde(default = "default_true")]
+    pub sound: bool,
 }
 
 fn default_true() -> bool {
@@ -70,6 +72,7 @@ impl Default for Config {
         Self {
             watched: Vec::new(),
             autostart: true,
+            sound: true,
         }
     }
 }
@@ -100,6 +103,8 @@ pub struct Card {
     pub progress: Option<f32>,
     pub expected_secs: Option<u64>,
     pub step_label: Option<String>,
+    /// Compact "done/total" position, e.g. "3/5".
+    pub step_short: Option<String>,
     pub failed_step: Option<String>,
     pub error: Option<String>,
 }

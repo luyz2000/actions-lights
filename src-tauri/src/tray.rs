@@ -32,6 +32,14 @@ pub fn set_icon(app: &AppHandle, light: Light, progress: Option<f32>) {
     }
 }
 
+/// Text beside the light (macOS only; ignored elsewhere) and the hover tooltip.
+pub fn set_text(app: &AppHandle, title: Option<&str>, tooltip: &str) {
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        let _ = tray.set_title(Some(title.unwrap_or("")));
+        let _ = tray.set_tooltip(Some(tooltip));
+    }
+}
+
 pub fn open_settings(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("settings") {
         let _ = w.show();

@@ -10,7 +10,7 @@
   type Section = "repos" | "account" | "general";
 
   let section = $state<Section>("repos");
-  let cfg = $state<Config>({ watched: [], autostart: true });
+  let cfg = $state<Config>({ watched: [], autostart: true, sound: true });
   let auth = $state<AuthStatus | null>(null);
   let repos = $state<Repo[]>([]);
   let reposLoading = $state(true);
@@ -199,6 +199,13 @@
               <div class="muted small">La app arranca sola y vive en la barra de menús.</div>
             </div>
             <input id="autostart" class="switch" type="checkbox" bind:checked={cfg.autostart} onchange={save} />
+          </label>
+          <label class="setting" for="sound">
+            <div>
+              <div class="label">Sonido en notificaciones</div>
+              <div class="muted small">Un sonido distinto cuando un workflow termina bien y cuando falla.</div>
+            </div>
+            <input id="sound" class="switch" type="checkbox" bind:checked={cfg.sound} onchange={save} />
           </label>
           <div class="setting">
             <div>

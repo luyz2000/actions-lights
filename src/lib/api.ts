@@ -17,6 +17,7 @@ export interface Card {
   progress: number | null;
   expected_secs: number | null;
   step_label: string | null;
+  step_short: string | null;
   failed_step: string | null;
   error: string | null;
 }
@@ -69,6 +70,7 @@ export interface WatchedWorkflow {
 export interface Config {
   watched: WatchedWorkflow[];
   autostart: boolean;
+  sound: boolean;
 }
 
 export interface Repo {

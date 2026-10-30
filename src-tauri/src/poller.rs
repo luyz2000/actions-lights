@@ -1,7 +1,7 @@
 use crate::github::{ApiError, GithubApi, Job, RateInfo, failed_step, steps_of};
 use crate::model::{Card, Config, Light, RepoGroup, RunSnapshot, WatchedWorkflow};
 use crate::notify_rules::{NotifyKind, Seen, decide};
-use crate::progress::{estimate, median_secs, step_label};
+use crate::progress::{estimate, median_secs, step_label, step_short};
 use crate::status::{is_running, label_for, light_for};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
@@ -12,6 +12,8 @@ pub struct Notification {
     pub run: RunSnapshot,
     pub kind: NotifyKind,
     pub failed_step: Option<String>,
+    /// Typical duration from recent successful runs.
+    pub expected_secs: Option<u64>,
 }
 
 /// Memory carried between cycles, keyed by `WatchedWorkflow::key()`.
@@ -58,6 +60,7 @@ fn empty_card(w: &WatchedWorkflow) -> Card {
         progress: None,
         expected_secs: None,
         step_label: None,
+        step_short: None,
         failed_step: None,
         error: None,
     }
@@ -117,6 +120,7 @@ pub async fn run_cycle<A: GithubApi>(
                     card.progress = estimate(elapsed, median, steps.as_ref());
                     card.expected_secs = median;
                     card.step_label = steps.as_ref().and_then(step_label);
+                    card.step_short = steps.as_ref().and_then(step_short);
                     running_progress.push(card.progress.unwrap_or(0.0));
                 } else {
                     card.completed_at = Some(run.updated_at);
@@ -142,6 +146,7 @@ pub async fn run_cycle<A: GithubApi>(
                         run: run.clone(),
                         kind,
                         failed_step: card.failed_step.clone(),
+                        expected_secs: card.expected_secs,
                     });
                 }
             }
@@ -179,25 +184,33 @@ pub fn notification_text(
     run: &RunSnapshot,
     kind: NotifyKind,
     failed_step: Option<&str>,
+    expected_secs: Option<u64>,
 ) -> (String, String) {
-    let icon = match kind {
-        NotifyKind::Succeeded => "✅",
-        NotifyKind::Failed => "❌",
-        NotifyKind::Started => "🟡",
+    let title = match kind {
+        NotifyKind::Succeeded => format!("✅ {} completado", w.workflow_name),
+        NotifyKind::Failed => format!("❌ {} falló", w.workflow_name),
+        NotifyKind::Started => format!("🟡 {} en curso", w.workflow_name),
     };
-    let title = format!(
-        "{icon} {} · {}",
-        w.workflow_name,
-        w.branch.as_deref().unwrap_or("cualquiera")
-    );
-    let start = run.run_started_at.unwrap_or(run.created_at);
-    let duration = fmt_duration((run.updated_at - start).num_seconds().max(0) as u64);
-    let body = match (kind, failed_step) {
-        (NotifyKind::Started, _) => format!("{} · empezó", w.repo),
-        (NotifyKind::Failed, Some(step)) => format!("{} · falló en {step}", w.repo),
-        _ => format!("{} · {duration}", w.repo),
-    };
-    (title, body)
+    let mut parts = Vec::new();
+    if let (NotifyKind::Failed, Some(step)) = (kind, failed_step) {
+        parts.push(format!("Falló en «{step}»"));
+    }
+    parts.push(w.repo.clone());
+    parts.extend(w.branch.clone());
+    match kind {
+        NotifyKind::Started => {
+            if let Some(secs) = expected_secs {
+                parts.push(format!("~{}m estimado", secs.div_ceil(60)));
+            }
+        }
+        _ => {
+            let start = run.run_started_at.unwrap_or(run.created_at);
+            parts.push(fmt_duration(
+                (run.updated_at - start).num_seconds().max(0) as u64
+            ));
+        }
+    }
+    (title, parts.join(" · "))
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -306,6 +319,13 @@ pub fn start(app: tauri::AppHandle) {
             let ring =
                 (overall == Light::Yellow).then_some(out.min_running_progress.unwrap_or(0.0));
             crate::tray::set_icon(&app, overall, ring);
+            let cards: Vec<crate::model::Card> =
+                out.groups.iter().flat_map(|g| g.cards.clone()).collect();
+            crate::tray::set_text(
+                &app,
+                crate::tray_text::tray_title(&cards, now).as_deref(),
+                &crate::tray_text::tray_tooltip(&cards),
+            );
 
             let rate = ctx.api.rate();
             let wait = crate::interval::next_interval(
@@ -339,9 +359,18 @@ pub fn start(app: tauri::AppHandle) {
             let _ = app.emit("dashboard", &dashboard);
 
             for n in &out.notifications {
-                let (title, body) =
-                    notification_text(&n.watched, &n.run, n.kind, n.failed_step.as_deref());
-                let _ = app.notification().builder().title(title).body(body).show();
+                let (title, body) = notification_text(
+                    &n.watched,
+                    &n.run,
+                    n.kind,
+                    n.failed_step.as_deref(),
+                    n.expected_secs,
+                );
+                let mut builder = app.notification().builder().title(title).body(body);
+                if let Some(sound) = crate::notify_rules::sound_for(n.kind, cfg.sound) {
+                    builder = builder.sound(sound);
+                }
+                let _ = builder.show();
             }
 
             next_due = SystemTime::now() + wait;
@@ -441,7 +470,7 @@ mod tests {
     fn cfg(w: Vec<WatchedWorkflow>) -> Config {
         Config {
             watched: w,
-            autostart: true,
+            ..Config::default()
         }
     }
 
@@ -637,27 +666,75 @@ mod tests {
         let mut r = run(5, "completed", Some("success"), now);
         r.run_started_at = Some(now - chrono::Duration::seconds(291));
         assert_eq!(
-            notification_text(&w, &r, NotifyKind::Succeeded, None),
+            notification_text(&w, &r, NotifyKind::Succeeded, None, None),
             (
-                "✅ WF1 · release".to_string(),
-                "acme/api · 4m 51s".to_string()
+                "✅ WF1 completado".to_string(),
+                "acme/api · release · 4m 51s".to_string()
             )
         );
         assert_eq!(
-            notification_text(&w, &r, NotifyKind::Failed, Some("Run migrations")).1,
-            "acme/api · falló en Run migrations"
+            notification_text(&w, &r, NotifyKind::Failed, Some("Run migrations"), None),
+            (
+                "❌ WF1 falló".to_string(),
+                "Falló en «Run migrations» · acme/api · release · 4m 51s".to_string()
+            )
+        );
+        assert_eq!(
+            notification_text(&w, &r, NotifyKind::Failed, None, None).1,
+            "acme/api · release · 4m 51s"
         );
         let any = WatchedWorkflow {
             branch: None,
             ..w.clone()
         };
         assert_eq!(
-            notification_text(&any, &r, NotifyKind::Started, None).0,
-            "🟡 WF1 · cualquiera"
+            notification_text(&any, &r, NotifyKind::Started, None, Some(300)),
+            (
+                "🟡 WF1 en curso".to_string(),
+                "acme/api · ~5m estimado".to_string()
+            )
         );
         assert_eq!(
-            notification_text(&any, &r, NotifyKind::Started, None).1,
-            "acme/api · empezó"
+            notification_text(&any, &r, NotifyKind::Started, None, None).1,
+            "acme/api"
         );
+    }
+
+    #[test]
+    fn started_estimate_rounds_up_to_a_minute() {
+        let now = Utc::now();
+        let w = WatchedWorkflow {
+            branch: None,
+            ..wf("acme/api", 1)
+        };
+        let r = run(5, "in_progress", None, now);
+        assert_eq!(
+            notification_text(&w, &r, NotifyKind::Started, None, Some(20)).1,
+            "acme/api · ~1m estimado"
+        );
+    }
+
+    #[tokio::test]
+    async fn notification_carries_expected_duration() {
+        let now = Utc::now();
+        let api = FakeApi {
+            durations: vec![240, 300, 360],
+            ..FakeApi::default()
+        };
+        let w = WatchedWorkflow {
+            notify: NotifyPrefs {
+                on_start: true,
+                ..NotifyPrefs::default()
+            },
+            ..wf("acme/api", 1)
+        };
+        let c = cfg(vec![w.clone()]);
+        let mut st = PollerState::new();
+        api.set_run(&w, Ok(Some(run(4, "completed", Some("success"), now))));
+        run_cycle(&api, &c, &mut st, now).await;
+        api.set_run(&w, Ok(Some(run(5, "in_progress", None, now))));
+        let out = run_cycle(&api, &c, &mut st, now).await;
+        assert_eq!(out.notifications.len(), 1);
+        assert_eq!(out.notifications[0].expected_secs, Some(300));
     }
 }

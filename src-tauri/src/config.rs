@@ -51,6 +51,7 @@ mod tests {
                 notify: NotifyPrefs::default(),
             }],
             autostart: false,
+            sound: false,
         };
         save(&dir, &cfg).unwrap();
         assert_eq!(load(&dir), cfg);
@@ -63,5 +64,17 @@ mod tests {
         std::fs::write(tmp.path().join("config.json"), "{nope").unwrap();
         assert_eq!(load(tmp.path()), Config::default());
         assert!(tmp.path().join("config.json.bak").exists());
+    }
+
+    #[test]
+    fn older_config_without_sound_defaults_on() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("config.json"),
+            r#"{"watched":[],"autostart":true}"#,
+        )
+        .unwrap();
+        assert!(load(tmp.path()).sound);
+        assert!(Config::default().sound);
     }
 }

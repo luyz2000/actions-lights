@@ -58,6 +58,18 @@ pub fn decide(
     (seen, kind.filter(|_| allowed))
 }
 
+/// macOS system sound for a notification, or None for a silent one.
+pub fn sound_for(kind: NotifyKind, enabled: bool) -> Option<&'static str> {
+    if !enabled {
+        return None;
+    }
+    match kind {
+        NotifyKind::Succeeded => Some("Glass"),
+        NotifyKind::Failed => Some("Basso"),
+        NotifyKind::Started => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -239,5 +251,27 @@ mod tests {
             .1,
             None
         );
+    }
+
+    #[test]
+    fn success_and_failure_have_distinct_sounds() {
+        assert_eq!(sound_for(NotifyKind::Succeeded, true), Some("Glass"));
+        assert_eq!(sound_for(NotifyKind::Failed, true), Some("Basso"));
+    }
+
+    #[test]
+    fn start_is_silent() {
+        assert_eq!(sound_for(NotifyKind::Started, true), None);
+    }
+
+    #[test]
+    fn sound_off_silences_everything() {
+        for k in [
+            NotifyKind::Started,
+            NotifyKind::Succeeded,
+            NotifyKind::Failed,
+        ] {
+            assert_eq!(sound_for(k, false), None);
+        }
     }
 }
