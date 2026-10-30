@@ -10,6 +10,7 @@ dependencies = [
  "chrono",
  "keyring",
  "mockito",
+ "objc2-service-management",
  "reqwest 0.12.28",
  "serde",
  "serde_json",

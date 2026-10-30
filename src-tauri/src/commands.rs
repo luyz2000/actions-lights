@@ -14,11 +14,35 @@ pub fn apply_autostart(app: &AppHandle, enabled: bool) {
         return;
     }
     let launcher = app.autolaunch();
+    #[cfg(target_os = "macos")]
+    {
+        // The plugin's LaunchAgent points at the bare binary, so Login Items shows a
+        // generic Unix executable. Drop any legacy agent and register the .app itself.
+        if launcher.is_enabled().unwrap_or(false) {
+            let _ = launcher.disable();
+        }
+        macos_login_item(enabled);
+    }
+    #[cfg(not(target_os = "macos"))]
     let _ = if enabled {
         launcher.enable()
     } else {
         launcher.disable()
     };
+}
+
+#[cfg(target_os = "macos")]
+fn macos_login_item(enabled: bool) {
+    use objc2_service_management::{SMAppService, SMAppServiceStatus};
+    unsafe {
+        let service = SMAppService::mainAppService();
+        let registered = service.status() == SMAppServiceStatus::Enabled;
+        let _ = match (enabled, registered) {
+            (true, false) => service.registerAndReturnError(),
+            (false, true) => service.unregisterAndReturnError(),
+            _ => Ok(()),
+        };
+    }
 }
 
 #[tauri::command]
