@@ -29,8 +29,8 @@
             repo: repo.full_name,
             workflow_id: wf.id,
             workflow_name: wf.name,
-            branch: repo.default_branch,
-            event: "push",
+            branch: null,
+            event: null,
             notify: { on_success: true, on_failure: true, on_start: false },
           }
         : null,
@@ -69,25 +69,29 @@
           <input id="wf-{wf.id}" class="switch" type="checkbox" checked={!!entry} onchange={(e) => toggle(wf, e.currentTarget.checked)} />
         </label>
         {#if entry}
-          <div class="opts">
-            <label for="br-{wf.id}">
-              <span>Rama</span>
-              <input
-                id="br-{wf.id}"
-                class="field mono"
-                placeholder="cualquiera"
-                value={entry.branch ?? ""}
-                onchange={(e) => update(entry, { branch: e.currentTarget.value.trim() || null })}
-              />
-            </label>
-            <label for="ev-{wf.id}">
-              <span>Evento</span>
-              <select id="ev-{wf.id}" class="field" value={entry.event ?? ""} onchange={(e) => update(entry, { event: e.currentTarget.value || null })}>
-                {#each EVENTS as ev (ev)}<option value={ev}>{ev}</option>{/each}
-                <option value="">cualquiera</option>
-              </select>
-            </label>
-          </div>
+          <details class="filter" open={!!(entry.branch || entry.event)}>
+            <summary>Filtrar por rama o evento</summary>
+            <p class="muted">Sin filtro se vigila la última ejecución, venga de donde venga. Úsalo si este workflow también corre, por ejemplo, en pull requests y no quieres que cambien el semáforo.</p>
+            <div class="opts">
+              <label for="br-{wf.id}">
+                <span>Rama</span>
+                <input
+                  id="br-{wf.id}"
+                  class="field mono"
+                  placeholder="cualquiera"
+                  value={entry.branch ?? ""}
+                  onchange={(e) => update(entry, { branch: e.currentTarget.value.trim() || null })}
+                />
+              </label>
+              <label for="ev-{wf.id}">
+                <span>Evento</span>
+                <select id="ev-{wf.id}" class="field" value={entry.event ?? ""} onchange={(e) => update(entry, { event: e.currentTarget.value || null })}>
+                  <option value="">cualquiera</option>
+                  {#each EVENTS as ev (ev)}<option value={ev}>{ev}</option>{/each}
+                </select>
+              </label>
+            </div>
+          </details>
           <div class="notify">
             <span class="muted">Avisarme</span>
             <label><input type="checkbox" checked={entry.notify.on_success} onchange={(e) => setNotify(entry, "on_success", e.currentTarget.checked)} /> al terminar bien</label>
@@ -158,12 +162,24 @@
     font-size: 11px;
     color: var(--muted);
   }
+  .filter {
+    padding-top: 10px;
+    border-top: 0.5px solid var(--border);
+    font-size: 12px;
+  }
+  .filter summary {
+    cursor: pointer;
+    color: var(--muted);
+  }
+  .filter p {
+    margin: 6px 0 0;
+    font-size: 11px;
+  }
   .opts {
     display: flex;
     gap: 14px;
     flex-wrap: wrap;
-    padding-top: 10px;
-    border-top: 0.5px solid var(--border);
+    padding-top: 8px;
   }
   .opts label {
     display: flex;

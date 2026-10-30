@@ -43,6 +43,8 @@ pub(crate) struct ApiRun {
     pub created_at: DateTime<Utc>,
     pub run_started_at: Option<DateTime<Utc>>,
     pub updated_at: DateTime<Utc>,
+    pub head_branch: Option<String>,
+    pub event: Option<String>,
 }
 
 impl From<ApiRun> for RunSnapshot {
@@ -56,6 +58,8 @@ impl From<ApiRun> for RunSnapshot {
             created_at: r.created_at,
             run_started_at: r.run_started_at,
             updated_at: r.updated_at,
+            head_branch: r.head_branch,
+            event: r.event,
         }
     }
 }

@@ -12,10 +12,20 @@ pub fn load(dir: &Path) -> Config {
     let Ok(text) = fs::read_to_string(&path) else {
         return Config::default();
     };
-    serde_json::from_str(&text).unwrap_or_else(|_| {
+    let mut cfg: Config = serde_json::from_str(&text).unwrap_or_else(|_| {
         let _ = fs::rename(&path, dir.join("config.json.bak"));
         Config::default()
-    })
+    });
+    // Older versions pre-filled branch/event; the run now tells us both.
+    if !cfg.filters_cleared {
+        for w in &mut cfg.watched {
+            w.branch = None;
+            w.event = None;
+        }
+        cfg.filters_cleared = true;
+        let _ = save(dir, &cfg);
+    }
+    cfg
 }
 
 /// Atomic write: tmp file + rename.
@@ -52,6 +62,7 @@ mod tests {
             }],
             autostart: false,
             sound: false,
+            filters_cleared: true,
         };
         save(&dir, &cfg).unwrap();
         assert_eq!(load(&dir), cfg);
@@ -76,5 +87,32 @@ mod tests {
         .unwrap();
         assert!(load(tmp.path()).sound);
         assert!(Config::default().sound);
+    }
+
+    #[test]
+    fn saved_filters_are_cleared_once() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("config.json"),
+            r#"{"watched":[{"repo":"acme/api","workflow_id":42,"workflow_name":"Deploy",
+                "branch":"main","event":"push"}],"autostart":true}"#,
+        )
+        .unwrap();
+        let cfg = load(tmp.path());
+        assert_eq!(
+            (
+                cfg.watched[0].branch.as_deref(),
+                cfg.watched[0].event.as_deref()
+            ),
+            (None, None)
+        );
+        // Persisted, so a filter the user sets afterwards survives the next load.
+        let mut kept = load(tmp.path());
+        kept.watched[0].branch = Some("release".into());
+        save(tmp.path(), &kept).unwrap();
+        assert_eq!(
+            load(tmp.path()).watched[0].branch.as_deref(),
+            Some("release")
+        );
     }
 }

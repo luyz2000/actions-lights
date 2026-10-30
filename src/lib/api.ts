@@ -20,6 +20,8 @@ export interface Card {
   step_short: string | null;
   failed_step: string | null;
   error: string | null;
+  run_branch: string | null;
+  run_event: string | null;
 }
 
 export interface RepoGroup {
@@ -71,6 +73,7 @@ export interface Config {
   watched: WatchedWorkflow[];
   autostart: boolean;
   sound: boolean;
+  filters_cleared: boolean;
 }
 
 export interface Repo {

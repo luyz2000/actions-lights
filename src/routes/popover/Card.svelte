@@ -33,7 +33,12 @@
       <span class="name">{card.workflow_name}</span>
       <span class="time">{time}</span>
     </div>
-    <div><span class="branch">{card.branch ?? "cualquier rama"}</span></div>
+    {#if card.run_branch || card.run_event}
+      <div class="meta">
+        {#if card.run_branch}<span class="branch">{card.run_branch}</span>{/if}
+        {#if card.run_event}<span class="event">{card.run_event}</span>{/if}
+      </div>
+    {/if}
     {#if running && pct !== null}
       <div class="progress" role="progressbar" aria-valuenow={pct} aria-valuemin="0" aria-valuemax="100">
         <div style="width: {pct}%"></div>
@@ -93,6 +98,16 @@
     font-size: 12px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .event {
+    color: var(--muted);
+    font-size: 11px;
   }
   .progress {
     height: 4px;

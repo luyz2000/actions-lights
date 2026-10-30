@@ -86,6 +86,8 @@ mod tests {
             created_at: now,
             run_started_at: Some(now),
             updated_at: now,
+            head_branch: None,
+            event: None,
         }
     }
 

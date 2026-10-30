@@ -131,6 +131,8 @@ mod tests {
             step_short: None,
             failed_step: None,
             error: None,
+            run_branch: None,
+            run_event: None,
         }
     }
 

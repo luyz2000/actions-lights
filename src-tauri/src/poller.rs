@@ -63,6 +63,8 @@ fn empty_card(w: &WatchedWorkflow) -> Card {
         step_short: None,
         failed_step: None,
         error: None,
+        run_branch: None,
+        run_event: None,
     }
 }
 
@@ -98,6 +100,8 @@ pub async fn run_cycle<A: GithubApi>(
                 card.light = light_for(&run.status, run.conclusion.as_deref());
                 card.label = label_for(&run.status);
                 card.run_url = Some(run.html_url.clone());
+                card.run_branch = run.head_branch.clone();
+                card.run_event = run.event.clone();
                 card.started_at = run.run_started_at.or(Some(run.created_at));
                 if running {
                     any_running = true;
@@ -196,7 +200,8 @@ pub fn notification_text(
         parts.push(format!("Falló en «{step}»"));
     }
     parts.push(w.repo.clone());
-    parts.extend(w.branch.clone());
+    parts.extend(run.head_branch.clone());
+    parts.extend(run.event.clone());
     match kind {
         NotifyKind::Started => {
             if let Some(secs) = expected_secs {
@@ -464,6 +469,8 @@ mod tests {
             created_at: now - chrono::Duration::seconds(120),
             run_started_at: Some(now - chrono::Duration::seconds(100)),
             updated_at: now,
+            head_branch: Some("release".into()),
+            event: Some("push".into()),
         }
     }
 
@@ -669,19 +676,19 @@ mod tests {
             notification_text(&w, &r, NotifyKind::Succeeded, None, None),
             (
                 "✅ WF1 completado".to_string(),
-                "acme/api · release · 4m 51s".to_string()
+                "acme/api · release · push · 4m 51s".to_string()
             )
         );
         assert_eq!(
             notification_text(&w, &r, NotifyKind::Failed, Some("Run migrations"), None),
             (
                 "❌ WF1 falló".to_string(),
-                "Falló en «Run migrations» · acme/api · release · 4m 51s".to_string()
+                "Falló en «Run migrations» · acme/api · release · push · 4m 51s".to_string()
             )
         );
         assert_eq!(
             notification_text(&w, &r, NotifyKind::Failed, None, None).1,
-            "acme/api · release · 4m 51s"
+            "acme/api · release · push · 4m 51s"
         );
         let any = WatchedWorkflow {
             branch: None,
@@ -691,12 +698,54 @@ mod tests {
             notification_text(&any, &r, NotifyKind::Started, None, Some(300)),
             (
                 "🟡 WF1 en curso".to_string(),
-                "acme/api · ~5m estimado".to_string()
+                "acme/api · release · push · ~5m estimado".to_string()
             )
         );
         assert_eq!(
             notification_text(&any, &r, NotifyKind::Started, None, None).1,
-            "acme/api"
+            "acme/api · release · push"
+        );
+    }
+
+    #[test]
+    fn notification_shows_the_run_branch_not_the_filter() {
+        let now = Utc::now();
+        let w = WatchedWorkflow {
+            branch: None,
+            event: None,
+            ..wf("acme/api", 1)
+        };
+        let r = RunSnapshot {
+            head_branch: Some("hotfix/login".into()),
+            event: Some("workflow_dispatch".into()),
+            ..run(5, "completed", Some("success"), now)
+        };
+        assert_eq!(
+            notification_text(&w, &r, NotifyKind::Succeeded, None, None).1,
+            "acme/api · hotfix/login · workflow_dispatch · 1m 40s"
+        );
+        let bare = RunSnapshot {
+            head_branch: None,
+            event: None,
+            ..r
+        };
+        assert_eq!(
+            notification_text(&w, &bare, NotifyKind::Succeeded, None, None).1,
+            "acme/api · 1m 40s"
+        );
+    }
+
+    #[tokio::test]
+    async fn card_carries_the_run_branch_and_event() {
+        let now = Utc::now();
+        let api = FakeApi::default();
+        let w = wf("acme/api", 1);
+        api.set_run(&w, Ok(Some(run(5, "completed", Some("success"), now))));
+        let out = run_cycle(&api, &cfg(vec![w]), &mut PollerState::new(), now).await;
+        let card = &out.groups[0].cards[0];
+        assert_eq!(
+            (card.run_branch.as_deref(), card.run_event.as_deref()),
+            (Some("release"), Some("push"))
         );
     }
 
@@ -710,7 +759,7 @@ mod tests {
         let r = run(5, "in_progress", None, now);
         assert_eq!(
             notification_text(&w, &r, NotifyKind::Started, None, Some(20)).1,
-            "acme/api · ~1m estimado"
+            "acme/api · release · push · ~1m estimado"
         );
     }
 

@@ -61,6 +61,9 @@ pub struct Config {
     pub autostart: bool,
     #[serde(default = "default_true")]
     pub sound: bool,
+    /// Set once the auto-filled branch/event filters from older versions were removed.
+    #[serde(default)]
+    pub filters_cleared: bool,
 }
 
 fn default_true() -> bool {
@@ -73,6 +76,7 @@ impl Default for Config {
             watched: Vec::new(),
             autostart: true,
             sound: true,
+            filters_cleared: true,
         }
     }
 }
@@ -87,6 +91,10 @@ pub struct RunSnapshot {
     pub created_at: DateTime<Utc>,
     pub run_started_at: Option<DateTime<Utc>>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default)]
+    pub head_branch: Option<String>,
+    #[serde(default)]
+    pub event: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -107,6 +115,9 @@ pub struct Card {
     pub step_short: Option<String>,
     pub failed_step: Option<String>,
     pub error: Option<String>,
+    /// Branch and event of the run shown, whatever the filter.
+    pub run_branch: Option<String>,
+    pub run_event: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

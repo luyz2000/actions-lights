@@ -10,7 +10,7 @@
   type Section = "repos" | "account" | "general";
 
   let section = $state<Section>("repos");
-  let cfg = $state<Config>({ watched: [], autostart: true, sound: true });
+  let cfg = $state<Config>({ watched: [], autostart: true, sound: true, filters_cleared: true });
   let auth = $state<AuthStatus | null>(null);
   let repos = $state<Repo[]>([]);
   let reposLoading = $state(true);
