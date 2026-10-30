@@ -27,6 +27,10 @@ use tauri_plugin_notification::{NotificationExt, PermissionState};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Must be the first plugin: a second launch exits and opens settings in the running one.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::open_settings(app);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())

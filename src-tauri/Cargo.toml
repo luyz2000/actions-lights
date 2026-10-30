@@ -31,6 +31,7 @@ tokio = { version = "1.54.1", features = ["macros", "net", "rt-multi-thread", "s
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "http2"] }
 bytes = "1.12.1"
 tauri-plugin-dialog = "2.8.3"
+tauri-plugin-single-instance = "2.5.5"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
@@ -46,4 +47,5 @@ mockito = "1.7.2"
 tempfile = "3.27.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWindow", "NSResponder"] }
 objc2-service-management = "0.3.2"

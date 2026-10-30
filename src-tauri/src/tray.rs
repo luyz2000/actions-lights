@@ -103,6 +103,16 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         .build(app)?;
 
     if let Some(popover) = app.get_webview_window("popover") {
+        // Without FullScreenAuxiliary macOS keeps the popover off a fullscreen app's Space.
+        #[cfg(target_os = "macos")]
+        if let Ok(ptr) = popover.ns_window() {
+            use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
+            let ns_window = unsafe { &*(ptr as *const NSWindow) };
+            ns_window.setCollectionBehavior(
+                NSWindowCollectionBehavior::CanJoinAllSpaces
+                    | NSWindowCollectionBehavior::FullScreenAuxiliary,
+            );
+        }
         let w = popover.clone();
         popover.on_window_event(move |event| {
             if let WindowEvent::Focused(false) = event {
