@@ -89,6 +89,11 @@ export interface Workflow {
   state: string;
 }
 
+export interface UpdateInfo {
+  version: string;
+  notes: string | null;
+}
+
 export const api = {
   getDashboard: () => invoke<DashboardState>("get_dashboard"),
   refreshNow: () => invoke<void>("refresh_now"),
@@ -106,7 +111,13 @@ export const api = {
   oauthLogout: () => invoke<AuthStatus>("oauth_logout"),
   openSettings: () => invoke<void>("open_settings"),
   quit: () => invoke<void>("quit"),
+  getUpdate: () => invoke<UpdateInfo | null>("get_update"),
+  installUpdate: () => invoke<void>("install_update"),
 };
+
+export function onUpdate(cb: (u: UpdateInfo | null) => void): Promise<UnlistenFn> {
+  return listen<UpdateInfo | null>("update", (e) => cb(e.payload));
+}
 
 export function onDashboard(cb: (d: DashboardState) => void): Promise<UnlistenFn> {
   return listen<DashboardState>("dashboard", (e) => cb(e.payload));

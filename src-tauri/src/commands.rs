@@ -129,6 +129,21 @@ pub fn open_settings(app: AppHandle) {
 }
 
 #[tauri::command]
+pub fn get_update(ctx: State<'_, AppCtx>) -> Option<crate::updates::UpdateInfo> {
+    ctx.update.read().unwrap().clone()
+}
+
+#[tauri::command]
+pub async fn check_updates(app: AppHandle) -> Result<Option<crate::updates::UpdateInfo>, String> {
+    crate::updates::check(&app).await
+}
+
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> Result<(), String> {
+    crate::updates::install(&app).await
+}
+
+#[tauri::command]
 pub fn quit(app: AppHandle) {
     app.exit(0);
 }

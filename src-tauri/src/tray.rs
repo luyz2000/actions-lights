@@ -102,8 +102,9 @@ fn toggle_popover(app: &AppHandle) {
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let refresh = MenuItem::with_id(app, "refresh", "Actualizar ahora", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Repos y workflows…", true, None::<&str>)?;
+    let updates = MenuItem::with_id(app, "updates", "Buscar actualizaciones", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&refresh, &settings, &quit])?;
+    let menu = Menu::with_items(app, &[&refresh, &settings, &updates, &quit])?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(Image::new_owned(icon::render_idle(), ICON_PX, ICON_PX))
@@ -121,6 +122,12 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
                 });
             }
             "settings" => open_settings(app),
+            "updates" => {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    crate::updates::check_and_report(&app).await;
+                });
+            }
             "quit" => app.exit(0),
             _ => {}
         })

@@ -56,10 +56,17 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      # Signs the updater bundle and uploads it with latest.json to the release.
       - name: Build universal
         uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
           args: --target universal-apple-darwin
+          tagName: ${{ needs.release-please.outputs.tag }}
+          releaseDraft: false
+          includeUpdaterJson: true
 
       - name: Adjuntar el .dmg al release
         run: |

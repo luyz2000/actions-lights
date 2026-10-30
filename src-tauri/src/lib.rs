@@ -14,6 +14,7 @@ mod progress;
 mod status;
 mod tray;
 mod tray_text;
+mod updates;
 
 use app_state::AppCtx;
 use auth::KeyringStore;
@@ -38,6 +39,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_positioner::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             None,
@@ -59,6 +61,9 @@ pub fn run() {
             commands::oauth_logout,
             commands::open_settings,
             commands::quit,
+            commands::get_update,
+            commands::check_updates,
+            commands::install_update,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -82,10 +87,12 @@ pub fn run() {
                 auth: RwLock::new(model::AuthStatus::none()),
                 wake: Arc::new(tokio::sync::Notify::new()),
                 config_dir,
+                update: RwLock::new(None),
             });
 
             let handle = app.handle().clone();
             tray::build(&handle)?;
+            updates::spawn(handle.clone());
             commands::apply_autostart(&handle, autostart);
             if first_run {
                 tray::open_settings(&handle);

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import "$lib/theme.css";
-  import { api, onDashboard, type DashboardState, type Light } from "$lib/api";
+  import { api, onDashboard, onUpdate, type DashboardState, type Light, type UpdateInfo } from "$lib/api";
   import { formatAgo, latestFinish } from "$lib/format";
   import StatusIcon from "$lib/StatusIcon.svelte";
   import Card from "./Card.svelte";
@@ -9,6 +9,20 @@
   let dash = $state<DashboardState | null>(null);
   let now = $state(new Date());
   let refreshing = $state(false);
+  let update = $state<UpdateInfo | null>(null);
+  let installing = $state(false);
+  let updateError = $state<string | null>(null);
+
+  async function installUpdate() {
+    installing = true;
+    updateError = null;
+    try {
+      await api.installUpdate(); // restarts the app on success
+    } catch (e) {
+      updateError = String(e);
+      installing = false;
+    }
+  }
 
   const counts = $derived.by(() => {
     const c: Record<Light, number> = { red: 0, yellow: 0, green: 0, gray: 0 };
@@ -45,11 +59,14 @@
 
   onMount(() => {
     api.getDashboard().then((d) => (dash = d));
+    api.getUpdate().then((u) => (update = u));
     const unlisten = onDashboard((d) => (dash = d));
+    const unlistenUpdate = onUpdate((u) => (update = u));
     const tick = setInterval(() => (now = new Date()), 1000);
     return () => {
       clearInterval(tick);
       unlisten.then((f) => f());
+      unlistenUpdate.then((f) => f());
     };
   });
 </script>
@@ -68,6 +85,18 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg>
     </button>
   </header>
+
+  {#if update}
+    <div class="update">
+      <div>
+        <div class="update-title">Versión {update.version} disponible</div>
+        {#if updateError}<div class="update-error">No se pudo actualizar: {updateError}</div>{/if}
+      </div>
+      <button class="btn primary" disabled={installing} onclick={installUpdate}>
+        {installing ? "Actualizando…" : "Actualizar y reiniciar"}
+      </button>
+    </div>
+  {/if}
 
   {#if dash?.banner}
     {#if dash.banner_url}
@@ -164,6 +193,28 @@
     to {
       transform: rotate(360deg);
     }
+  }
+  .update {
+    margin: 8px 10px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: var(--surface-2);
+    font-size: 12px;
+  }
+  .update-title {
+    font-weight: 600;
+  }
+  .update-error {
+    color: var(--red);
+    word-break: break-word;
+  }
+  .update .btn {
+    flex: none;
+    font-size: 12px;
   }
   .banner {
     margin: 8px 10px 0;

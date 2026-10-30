@@ -16,6 +16,8 @@ pub struct AppCtx {
     /// Wakes the poller immediately ("Actualizar ahora", config or token changed).
     pub wake: Arc<Notify>,
     pub config_dir: PathBuf,
+    /// Newer release found by the updater, if any.
+    pub update: RwLock<Option<crate::updates::UpdateInfo>>,
 }
 
 fn gh_token() -> Option<String> {
