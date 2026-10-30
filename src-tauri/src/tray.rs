@@ -10,6 +10,16 @@ use tauri_plugin_positioner::{Position, WindowExt};
 
 pub const TRAY_ID: &str = "main";
 
+#[cfg(target_os = "macos")]
+tauri_nspanel::tauri_panel! {
+    panel!(PopoverPanel {
+        config: {
+            can_become_key_window: true,
+            is_floating_panel: true
+        }
+    })
+}
+
 /// When the popover was last hidden by losing focus. Clicking the tray icon while the
 /// popover is open first blurs it; without this the same click would reopen it.
 static LAST_BLUR_HIDE_MS: AtomicU64 = AtomicU64::new(0);
@@ -40,8 +50,22 @@ pub fn set_text(app: &AppHandle, title: Option<&str>, tooltip: &str) {
     }
 }
 
+/// While settings is open the app behaves like a regular one (Dock icon, Cmd+Tab), so
+/// the window can be found again after switching apps; otherwise it lives in the tray.
+fn set_regular_app(app: &AppHandle, regular: bool) {
+    #[cfg(target_os = "macos")]
+    let _ = app.set_activation_policy(if regular {
+        tauri::ActivationPolicy::Regular
+    } else {
+        tauri::ActivationPolicy::Accessory
+    });
+    #[cfg(not(target_os = "macos"))]
+    let _ = (app, regular);
+}
+
 pub fn open_settings(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("settings") {
+        set_regular_app(app, true);
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
@@ -60,6 +84,12 @@ fn toggle_popover(app: &AppHandle) {
         return;
     }
     let _ = w.move_window(Position::TrayCenter);
+    // Showing the panel without activating the app keeps it over fullscreen apps.
+    #[cfg(target_os = "macos")]
+    if let Ok(panel) = tauri_nspanel::ManagerExt::get_webview_panel(app, "popover") {
+        panel.show_and_make_key();
+        return;
+    }
     let _ = w.show();
     let _ = w.set_focus();
 }
@@ -103,15 +133,20 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         .build(app)?;
 
     if let Some(popover) = app.get_webview_window("popover") {
-        // Without FullScreenAuxiliary macOS keeps the popover off a fullscreen app's Space.
+        // A plain NSWindow never joins another app's fullscreen Space, whatever its
+        // collection behavior; a non-activating panel does (like other menu-bar apps).
         #[cfg(target_os = "macos")]
-        if let Ok(ptr) = popover.ns_window() {
-            use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
-            let ns_window = unsafe { &*(ptr as *const NSWindow) };
-            ns_window.setCollectionBehavior(
+        {
+            use tauri_nspanel::objc2_app_kit::{NSWindowCollectionBehavior, NSWindowStyleMask};
+            use tauri_nspanel::{PanelLevel, WebviewWindowExt};
+            let panel = popover.to_panel::<PopoverPanel>()?;
+            panel.set_level(PanelLevel::Floating.value());
+            let _ = panel.add_style_mask(NSWindowStyleMask::NonactivatingPanel);
+            panel.set_collection_behavior(
                 NSWindowCollectionBehavior::CanJoinAllSpaces
                     | NSWindowCollectionBehavior::FullScreenAuxiliary,
             );
+            panel.set_hides_on_deactivate(false);
         }
         let w = popover.clone();
         popover.on_window_event(move |event| {
@@ -123,11 +158,13 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     }
     if let Some(settings) = app.get_webview_window("settings") {
         let w = settings.clone();
+        let handle = app.clone();
         // Closing settings only hides it; the app lives in the tray.
         settings.on_window_event(move |event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = w.hide();
+                set_regular_app(&handle, false);
             }
         });
     }
