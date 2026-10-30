@@ -22,6 +22,8 @@ export interface Card {
   error: string | null;
   run_branch: string | null;
   run_event: string | null;
+  run_title: string | null;
+  run_actor: string | null;
 }
 
 export interface RepoGroup {

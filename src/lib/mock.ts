@@ -17,12 +17,12 @@ const dashboard: DashboardState = {
         {
           key: "a1", repo: "acme/api", workflow_name: "Deploy", branch: "release", light: "yellow", label: null,
           run_url: "https://github.com", started_at: ago(192), completed_at: null, progress: 0.62, expected_secs: 310,
-          step_label: "Paso 5/9 · Build image", step_short: null, failed_step: null, error: null, run_branch: "release", run_event: "push",
+          step_label: "Paso 5/9 · Build image", step_short: null, failed_step: null, error: null, run_branch: "release", run_event: "push", run_title: "Fix checkout (#482)", run_actor: "luyz2000",
         },
         {
           key: "a2", repo: "acme/api", workflow_name: "Tests", branch: "release", light: "green", label: null,
           run_url: "https://github.com", started_at: ago(700), completed_at: ago(300), progress: null, expected_secs: null,
-          step_label: null, step_short: null, failed_step: null, error: null, run_branch: "release", run_event: "push",
+          step_label: null, step_short: null, failed_step: null, error: null, run_branch: "release", run_event: "push", run_title: "Fix checkout (#482)", run_actor: "luyz2000",
         },
       ],
     },
@@ -32,12 +32,12 @@ const dashboard: DashboardState = {
         {
           key: "w1", repo: "acme/web", workflow_name: "Deploy", branch: "main", light: "red", label: null,
           run_url: "https://github.com", started_at: ago(1500), completed_at: ago(1200), progress: null, expected_secs: null,
-          step_label: null, step_short: null, failed_step: "Run migrations", error: null, run_branch: "release", run_event: "push",
+          step_label: null, step_short: null, failed_step: "Run migrations", error: null, run_branch: "release", run_event: "push", run_title: "Fix checkout (#482)", run_actor: "luyz2000",
         },
         {
           key: "w2", repo: "acme/web", workflow_name: "Release", branch: null, light: "yellow", label: "esperando aprobación",
           run_url: "https://github.com", started_at: ago(40), completed_at: null, progress: null, expected_secs: null,
-          step_label: null, step_short: null, failed_step: null, error: null, run_branch: "release", run_event: "push",
+          step_label: null, step_short: null, failed_step: null, error: null, run_branch: "release", run_event: "push", run_title: "Fix checkout (#482)", run_actor: "luyz2000",
         },
       ],
     },

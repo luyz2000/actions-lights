@@ -366,7 +366,8 @@ mod tests {
     const RUN_JSON: &str = r#"{"workflow_runs":[{"id":9,"run_attempt":2,"status":"in_progress","conclusion":null,
         "html_url":"https://github.com/acme/api/actions/runs/9","created_at":"2026-10-27T10:00:00Z",
         "run_started_at":"2026-10-27T10:00:05Z","updated_at":"2026-10-27T10:03:00Z",
-        "head_branch":"release","event":"push"}]}"#;
+        "head_branch":"release","event":"push","display_title":"Fix checkout (#482)",
+        "actor":{"login":"luyz2000"}}]}"#;
 
     #[tokio::test]
     async fn latest_run_builds_query_and_parses() {
@@ -391,6 +392,10 @@ mod tests {
         assert_eq!(
             (run.head_branch.as_deref(), run.event.as_deref()),
             (Some("release"), Some("push"))
+        );
+        assert_eq!(
+            (run.title.as_deref(), run.actor.as_deref()),
+            (Some("Fix checkout (#482)"), Some("luyz2000"))
         );
         m.assert_async().await;
     }

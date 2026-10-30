@@ -65,6 +65,8 @@ fn empty_card(w: &WatchedWorkflow) -> Card {
         error: None,
         run_branch: None,
         run_event: None,
+        run_title: None,
+        run_actor: None,
     }
 }
 
@@ -102,6 +104,8 @@ pub async fn run_cycle<A: GithubApi>(
                 card.run_url = Some(run.html_url.clone());
                 card.run_branch = run.head_branch.clone();
                 card.run_event = run.event.clone();
+                card.run_title = run.title.clone();
+                card.run_actor = run.actor.clone();
                 card.started_at = run.run_started_at.or(Some(run.created_at));
                 if running {
                     any_running = true;
@@ -476,6 +480,8 @@ mod tests {
             updated_at: now,
             head_branch: Some("release".into()),
             event: Some("push".into()),
+            title: Some("Fix checkout (#482)".into()),
+            actor: Some("luyz2000".into()),
         }
     }
 
@@ -737,6 +743,20 @@ mod tests {
         assert_eq!(
             notification_text(&w, &bare, NotifyKind::Succeeded, None, None).1,
             "acme/api · 1m 40s"
+        );
+    }
+
+    #[tokio::test]
+    async fn card_carries_what_triggered_the_run() {
+        let now = Utc::now();
+        let api = FakeApi::default();
+        let w = wf("acme/api", 1);
+        api.set_run(&w, Ok(Some(run(5, "in_progress", None, now))));
+        let out = run_cycle(&api, &cfg(vec![w]), &mut PollerState::new(), now).await;
+        let card = &out.groups[0].cards[0];
+        assert_eq!(
+            (card.run_title.as_deref(), card.run_actor.as_deref()),
+            (Some("Fix checkout (#482)"), Some("luyz2000"))
         );
     }
 

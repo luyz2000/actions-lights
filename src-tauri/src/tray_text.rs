@@ -165,6 +165,8 @@ mod tests {
             error: None,
             run_branch: None,
             run_event: None,
+            run_title: None,
+            run_actor: None,
         }
     }
 

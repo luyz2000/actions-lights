@@ -95,6 +95,12 @@ pub struct RunSnapshot {
     pub head_branch: Option<String>,
     #[serde(default)]
     pub event: Option<String>,
+    /// PR title or commit message GitHub shows for the run.
+    #[serde(default)]
+    pub title: Option<String>,
+    /// Login of who triggered it.
+    #[serde(default)]
+    pub actor: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -118,6 +124,8 @@ pub struct Card {
     /// Branch and event of the run shown, whatever the filter.
     pub run_branch: Option<String>,
     pub run_event: Option<String>,
+    pub run_title: Option<String>,
+    pub run_actor: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

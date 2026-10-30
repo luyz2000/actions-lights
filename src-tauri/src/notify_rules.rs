@@ -88,6 +88,8 @@ mod tests {
             updated_at: now,
             head_branch: None,
             event: None,
+            title: None,
+            actor: None,
         }
     }
 

@@ -45,6 +45,13 @@ pub(crate) struct ApiRun {
     pub updated_at: DateTime<Utc>,
     pub head_branch: Option<String>,
     pub event: Option<String>,
+    pub display_title: Option<String>,
+    pub actor: Option<ApiActor>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct ApiActor {
+    pub login: String,
 }
 
 impl From<ApiRun> for RunSnapshot {
@@ -60,6 +67,8 @@ impl From<ApiRun> for RunSnapshot {
             updated_at: r.updated_at,
             head_branch: r.head_branch,
             event: r.event,
+            title: r.display_title.filter(|t| !t.trim().is_empty()),
+            actor: r.actor.map(|a| a.login),
         }
     }
 }

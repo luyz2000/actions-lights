@@ -33,6 +33,11 @@
       <span class="name">{card.workflow_name}</span>
       <span class="time">{time}</span>
     </div>
+    {#if card.run_title || card.run_actor}
+      <div class="trigger" title={card.run_title ?? ""}>
+        {[card.run_title, card.run_actor].filter(Boolean).join(" · ")}
+      </div>
+    {/if}
     {#if card.run_branch || card.run_event}
       <div class="meta">
         {#if card.run_branch}<span class="branch">{card.run_branch}</span>{/if}
@@ -98,6 +103,16 @@
     font-size: 12px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+  }
+  .trigger {
+    font-size: 12px;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
   .meta {
     display: flex;
