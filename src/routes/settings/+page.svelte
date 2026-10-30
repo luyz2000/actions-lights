@@ -132,7 +132,17 @@
 <div class="window">
   <nav>
     <div class="brand">
-      <span class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <svg class="logo" width="22" height="22" viewBox="100 100 824 824" aria-hidden="true">
+        <rect x="103" y="103" width="818" height="818" rx="183" fill="#F6F8FA" stroke="#D0D7DE" stroke-width="6" />
+        <path d="M262 400H762M512 400V680" stroke="#8B949E" stroke-width="40" />
+        <circle cx="262" cy="400" r="100" fill="#2EA043" />
+        <circle cx="512" cy="400" r="100" fill="#2EA043" />
+        <path d="M220 400l30 32 57-64M470 400l30 32 57-64" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" />
+        <circle cx="762" cy="400" r="82" fill="#F6F8FA" stroke="#D29922" stroke-width="36" />
+        <circle cx="762" cy="400" r="34" fill="#D29922" />
+        <circle cx="512" cy="680" r="100" fill="#F85149" />
+        <path d="M476 644L548 716M548 644L476 716" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" />
+      </svg>
       Actions Lights
     </div>
     {#each NAV as item (item.id)}
@@ -247,22 +257,9 @@
     font-weight: 600;
     padding: 2px 8px 14px;
   }
-  .lights {
-    display: inline-flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 3px;
-    border-radius: 5px;
-    background: var(--fg);
+  .logo {
+    flex: none;
   }
-  .lights i {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-  }
-  .lights .r { background: var(--red); }
-  .lights .y { background: var(--yellow); }
-  .lights .g { background: var(--green); }
   .nav-item {
     display: flex;
     align-items: center;

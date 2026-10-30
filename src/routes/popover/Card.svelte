@@ -31,9 +31,9 @@
   <div class="body">
     <div class="line">
       <span class="name">{card.workflow_name}</span>
-      <span class="branch">{card.branch ?? "cualquier rama"}</span>
       <span class="time">{time}</span>
     </div>
+    <div><span class="branch">{card.branch ?? "cualquier rama"}</span></div>
     {#if running && pct !== null}
       <div class="progress" role="progressbar" aria-valuenow={pct} aria-valuemin="0" aria-valuemax="100">
         <div style="width: {pct}%"></div>
@@ -85,9 +85,7 @@
   }
   .name {
     font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .time {
     margin-left: auto;
