@@ -1,3 +1,6 @@
+import type { Card } from "./api";
+
+
 export function formatDuration(secs: number): string {
   const s = Math.max(0, Math.floor(secs));
   if (s < 60) return `${s}s`;
@@ -11,4 +14,13 @@ export function formatAgo(iso: string, now: Date): string {
   if (secs < 3600) return `hace ${Math.floor(secs / 60)}m`;
   if (secs < 86400) return `hace ${Math.floor(secs / 3600)}h`;
   return `hace ${Math.floor(secs / 86400)}d`;
+}
+
+/** Most recent completion among successful runs (ISO strings compare chronologically). */
+export function latestFinish(cards: Card[]): string | null {
+  let latest: string | null = null;
+  for (const c of cards) {
+    if (c.light === "green" && c.completed_at && (!latest || c.completed_at > latest)) latest = c.completed_at;
+  }
+  return latest;
 }

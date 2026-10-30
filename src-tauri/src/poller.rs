@@ -323,13 +323,15 @@ pub fn start(app: tauri::AppHandle) {
             let overall = crate::status::aggregate(&lights);
             let ring =
                 (overall == Light::Yellow).then_some(out.min_running_progress.unwrap_or(0.0));
-            crate::tray::set_icon(&app, overall, ring);
             let cards: Vec<crate::model::Card> =
                 out.groups.iter().flat_map(|g| g.cards.clone()).collect();
+            let title = crate::tray_text::tray_title(&cards, now);
+            let idle = crate::tray_text::shows_idle_icon(overall, title.as_deref());
+            crate::tray::set_icon(&app, overall, ring, idle);
             crate::tray::set_text(
                 &app,
-                crate::tray_text::tray_title(&cards, now).as_deref(),
-                &crate::tray_text::tray_tooltip(&cards),
+                title.as_deref(),
+                &crate::tray_text::tray_tooltip(&cards, now),
             );
 
             let rate = ctx.api.rate();

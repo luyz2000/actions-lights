@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import "$lib/theme.css";
   import { api, onDashboard, type DashboardState, type Light } from "$lib/api";
-  import { formatAgo } from "$lib/format";
+  import { formatAgo, latestFinish } from "$lib/format";
   import StatusIcon from "$lib/StatusIcon.svelte";
   import Card from "./Card.svelte";
 
@@ -22,13 +22,16 @@
     if (!dash?.last_updated) return "Consultando GitHub…";
     if (counts.red) return counts.red === 1 ? "1 workflow falló" : `${counts.red} workflows fallaron`;
     if (counts.yellow) return counts.yellow === 1 ? "1 workflow en curso" : `${counts.yellow} workflows en curso`;
-    if (counts.green) return "Todo en verde";
+    if (counts.green) return "Todo en orden";
     return "Sin actividad";
   });
+  const cards = $derived((dash?.groups ?? []).flatMap((g) => g.cards));
+  const calmSince = $derived(counts.red || counts.yellow ? null : latestFinish(cards));
   const detail = $derived(
     [
       counts.yellow && counts.red ? `${counts.yellow} en curso` : null,
       counts.green && (counts.red || counts.yellow) ? `${counts.green} OK` : null,
+      calmSince ? `Última ejecución ${formatAgo(calmSince, now)}` : null,
     ]
       .filter(Boolean)
       .join(" · "),

@@ -35,9 +35,14 @@ pub fn icon_image(light: Light, progress: Option<f32>) -> Image<'static> {
     Image::new_owned(icon::render(light, progress), ICON_PX, ICON_PX)
 }
 
-pub fn set_icon(app: &AppHandle, light: Light, progress: Option<f32>) {
+pub fn set_icon(app: &AppHandle, light: Light, progress: Option<f32>, idle: bool) {
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
-        let _ = tray.set_icon(Some(icon_image(light, progress)));
+        let image = if idle {
+            Image::new_owned(icon::render_idle(), ICON_PX, ICON_PX)
+        } else {
+            icon_image(light, progress)
+        };
+        let _ = tray.set_icon(Some(image));
         let _ = tray.set_icon_as_template(false);
     }
 }
@@ -101,7 +106,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&refresh, &settings, &quit])?;
 
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(icon_image(Light::Gray, None))
+        .icon(Image::new_owned(icon::render_idle(), ICON_PX, ICON_PX))
         .icon_as_template(false)
         .tooltip("Actions Lights")
         .menu(&menu)

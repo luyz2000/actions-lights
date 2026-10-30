@@ -76,12 +76,44 @@ pub fn tray_title(cards: &[Card], now: DateTime<Utc>) -> Option<String> {
     latest(Light::Green).map(|c| format!("✓ {}", short_name(&c.workflow_name)))
 }
 
+/// Calm state: nothing running, nothing failed, at least one finished run.
+pub fn all_clear(cards: &[Card], now: DateTime<Utc>) -> Option<String> {
+    if cards
+        .iter()
+        .any(|c| matches!(c.light, Light::Yellow | Light::Red) || c.error.is_some())
+    {
+        return None;
+    }
+    let latest = cards
+        .iter()
+        .filter(|c| c.light == Light::Green)
+        .filter_map(|c| c.completed_at)
+        .max()?;
+    let secs = (now - latest).num_seconds().max(0);
+    let ago = match secs {
+        s if s < 60 => "hace un momento".to_string(),
+        s if s < 3600 => format!("hace {}m", s / 60),
+        s if s < 86400 => format!("hace {}h", s / 3600),
+        s => format!("hace {}d", s / 86400),
+    };
+    Some(format!("Todo en orden · última ejecución {ago}"))
+}
+
+/// The tray shows the app glyph instead of a light when there is nothing to report.
+pub fn shows_idle_icon(overall: Light, title: Option<&str>) -> bool {
+    matches!(overall, Light::Green | Light::Gray) && title.is_none()
+}
+
 /// One line per watched workflow, for the tray tooltip.
-pub fn tray_tooltip(cards: &[Card]) -> String {
+pub fn tray_tooltip(cards: &[Card], now: DateTime<Utc>) -> String {
     if cards.is_empty() {
         return "Actions Lights · sin workflows".into();
     }
-    let mut lines = vec!["Actions Lights".to_string()];
+    let header = match all_clear(cards, now) {
+        Some(calm) => format!("Actions Lights · {calm}"),
+        None => "Actions Lights".to_string(),
+    };
+    let mut lines = vec![header];
     for c in cards {
         let (mark, status) = match c.light {
             Light::Yellow => (
@@ -258,7 +290,7 @@ mod tests {
             card("docs", Light::Gray),
         ];
         assert_eq!(
-            tray_tooltip(&cards),
+            tray_tooltip(&cards, now),
             "Actions Lights\n\
              ● deploy (acme/api): Paso 3/5 · Build\n\
              ✗ migrate (acme/api): falló en Run migrations\n\
@@ -269,6 +301,69 @@ mod tests {
 
     #[test]
     fn tooltip_without_workflows() {
-        assert_eq!(tray_tooltip(&[]), "Actions Lights · sin workflows");
+        assert_eq!(
+            tray_tooltip(&[], Utc::now()),
+            "Actions Lights · sin workflows"
+        );
+    }
+
+    #[test]
+    fn all_clear_reports_the_latest_finish() {
+        let now = Utc::now();
+        let cards = [
+            finished("deploy", Light::Green, now, 7300),
+            finished("lint", Light::Green, now, 3 * 86400),
+            card("docs", Light::Gray),
+        ];
+        assert_eq!(
+            all_clear(&cards, now).as_deref(),
+            Some("Todo en orden · última ejecución hace 2h")
+        );
+        let recent = [finished("deploy", Light::Green, now, 20)];
+        assert_eq!(
+            all_clear(&recent, now).as_deref(),
+            Some("Todo en orden · última ejecución hace un momento")
+        );
+    }
+
+    #[test]
+    fn not_all_clear_with_failures_runs_errors_or_nothing() {
+        let now = Utc::now();
+        let ok = finished("deploy", Light::Green, now, 60);
+        assert_eq!(
+            all_clear(&[ok.clone(), finished("b", Light::Red, now, 9000)], now),
+            None
+        );
+        assert_eq!(
+            all_clear(&[ok.clone(), running("b", now, 5, 0.1)], now),
+            None
+        );
+        let broken = Card {
+            error: Some("404".into()),
+            ..card("x", Light::Gray)
+        };
+        assert_eq!(all_clear(&[ok, broken], now), None);
+        assert_eq!(all_clear(&[card("x", Light::Gray)], now), None);
+        assert_eq!(all_clear(&[], now), None);
+    }
+
+    #[test]
+    fn idle_icon_only_when_calm() {
+        assert!(shows_idle_icon(Light::Green, None));
+        assert!(shows_idle_icon(Light::Gray, None));
+        assert!(!shows_idle_icon(Light::Green, Some("✓ deploy")));
+        assert!(!shows_idle_icon(Light::Red, None));
+        assert!(!shows_idle_icon(Light::Yellow, Some("deploy · 2m")));
+    }
+
+    #[test]
+    fn tooltip_leads_with_all_clear() {
+        let now = Utc::now();
+        let cards = [finished("deploy", Light::Green, now, 7300)];
+        assert_eq!(
+            tray_tooltip(&cards, now),
+            "Actions Lights · Todo en orden · última ejecución hace 2h\n\
+             ✓ deploy (acme/api): completado"
+        );
     }
 }
