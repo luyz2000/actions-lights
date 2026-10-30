@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/luyz2000/actions-lights/compare/v1.1.1...v1.2.0) (2026-10-30)
+
+
+### Novedades
+
+* idle state shows the app logo in the menu bar with an all-clear summary ([20b2366](https://github.com/luyz2000/actions-lights/commit/20b236697fc3572130ed44d0d57e0b4d163a7460))
+
 ## [1.1.1](https://github.com/luyz2000/actions-lights/compare/v1.1.0...v1.1.1) (2026-10-30)
 
 
