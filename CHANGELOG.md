@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/luyz2000/actions-lights/compare/v1.1.0...v1.1.1) (2026-10-30)
+
+
+### Correcciones
+
+* show the popover over fullscreen apps as a non-activating panel and keep settings reachable via Dock and Cmd+Tab ([b4b1c1c](https://github.com/luyz2000/actions-lights/commit/b4b1c1ca8d2d639c856e1f80d5b9fc573aac3355))
+
 ## [1.1.0](https://github.com/luyz2000/actions-lights/compare/v1.0.0...v1.1.0) (2026-10-30)
 
 
