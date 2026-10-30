@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 use tauri_plugin_positioner::{Position, WindowExt};
 
 pub const TRAY_ID: &str = "main";
@@ -123,10 +123,9 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
             }
             "settings" => open_settings(app),
             "updates" => {
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    crate::updates::check_and_report(&app).await;
-                });
+                // The settings window shows the version and runs the check itself.
+                open_settings(app);
+                let _ = app.emit_to("settings", "show-updates", ());
             }
             "quit" => app.exit(0),
             _ => {}

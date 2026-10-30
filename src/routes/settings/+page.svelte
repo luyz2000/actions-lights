@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { getVersion } from "@tauri-apps/api/app";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import "$lib/theme.css";
-  import { api, type AuthStatus, type Config, type NotificationStatus, type Repo, type WatchedWorkflow, type Workflow } from "$lib/api";
+  import { api, onShowUpdates, type AuthStatus, type Config, type NotificationStatus, type Repo, type UpdateInfo, type WatchedWorkflow, type Workflow } from "$lib/api";
   import Account from "./Account.svelte";
   import RepoList from "./RepoList.svelte";
   import WorkflowList from "./WorkflowList.svelte";
@@ -21,6 +22,28 @@
   let wfLoading = $state(false);
   let wfError = $state<string | null>(null);
   let saved = $state<"ok" | string | null>(null);
+  let version = $state("");
+  let update = $state<UpdateInfo | null>(null);
+  let updateState = $state<"idle" | "checking" | "latest" | "installing" | string>("idle");
+
+  async function checkUpdates() {
+    updateState = "checking";
+    try {
+      update = await api.checkUpdates();
+      updateState = update ? "idle" : "latest";
+    } catch (e) {
+      updateState = `No se pudo comprobar: ${e}`;
+    }
+  }
+
+  async function installUpdate() {
+    updateState = "installing";
+    try {
+      await api.installUpdate(); // restarts the app on success
+    } catch (e) {
+      updateState = `No se pudo actualizar: ${e}`;
+    }
+  }
 
   const watchedRepos = $derived.by(() => {
     const m = new Map<string, number>();
@@ -110,6 +133,8 @@
 
   onMount(() => {
     api.notificationsStatus().then((n) => (notifications = n));
+    getVersion().then((v) => (version = v));
+    api.getUpdate().then((u) => (update = u));
     Promise.all([api.getConfig(), api.authStatus()]).then(async ([c, a]) => {
       cfg = c;
       auth = a;
@@ -119,8 +144,14 @@
     const unlisten = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
       if (focused) refresh();
     });
+    // "Buscar actualizaciones" in the tray menu lands here.
+    const unlistenUpdates = onShowUpdates(() => {
+      section = "general";
+      checkUpdates();
+    });
     return () => {
       unlisten.then((f) => f());
+      unlistenUpdates.then((f) => f());
     };
   });
 
@@ -232,6 +263,26 @@
               <div class="label">Frecuencia de consulta</div>
               <div class="muted small">Cada 15 s si algo está corriendo, cada 60 s en reposo y cada 5 min sin cuenta. Se espacia sola si el límite de la API baja.</div>
             </div>
+          </div>
+        </div>
+        <div class="group">
+          <div class="setting">
+            <div>
+              <div class="label">Versión {version}</div>
+              <div class="muted small">
+                {#if updateState === "checking"}Buscando actualizaciones…
+                {:else if updateState === "installing"}Descargando e instalando; la app se reiniciará sola.
+                {:else if updateState !== "idle" && updateState !== "latest"}<span class="error">{updateState}</span>
+                {:else if update}Versión {update.version} disponible.
+                {:else if updateState === "latest"}Tienes la última versión.
+                {:else}La app busca actualizaciones sola cada 6 horas.{/if}
+              </div>
+            </div>
+            {#if update}
+              <button class="btn primary" disabled={updateState === "installing"} onclick={installUpdate}>Actualizar y reiniciar</button>
+            {:else}
+              <button class="btn" disabled={updateState === "checking"} onclick={checkUpdates}>Buscar actualizaciones</button>
+            {/if}
           </div>
         </div>
       </div>

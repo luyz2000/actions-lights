@@ -119,6 +119,7 @@ export const api = {
   openSettings: () => invoke<void>("open_settings"),
   quit: () => invoke<void>("quit"),
   getUpdate: () => invoke<UpdateInfo | null>("get_update"),
+  checkUpdates: () => invoke<UpdateInfo | null>("check_updates"),
   installUpdate: () => invoke<void>("install_update"),
   testNotification: () => invoke<void>("test_notification"),
   notificationsStatus: () => invoke<NotificationStatus>("notifications_status"),
@@ -126,6 +127,10 @@ export const api = {
 
 export function onUpdate(cb: (u: UpdateInfo | null) => void): Promise<UnlistenFn> {
   return listen<UpdateInfo | null>("update", (e) => cb(e.payload));
+}
+
+export function onShowUpdates(cb: () => void): Promise<UnlistenFn> {
+  return listen("show-updates", () => cb());
 }
 
 export function onDashboard(cb: (d: DashboardState) => void): Promise<UnlistenFn> {

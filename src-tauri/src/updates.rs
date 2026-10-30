@@ -56,28 +56,6 @@ pub async fn install(app: &AppHandle) -> Result<(), String> {
     app.restart();
 }
 
-/// Manual check from the tray menu: always answers with a notification.
-pub async fn check_and_report(app: &AppHandle) {
-    use tauri_plugin_notification::NotificationExt;
-    let body = match check(app).await {
-        Ok(Some(info)) => format!(
-            "Versión {} disponible. Ábrela desde el listado.",
-            info.version
-        ),
-        Ok(None) => format!(
-            "Ya tienes la última versión ({}).",
-            app.package_info().version
-        ),
-        Err(e) => format!("No se pudo comprobar: {e}"),
-    };
-    let _ = app
-        .notification()
-        .builder()
-        .title("Actions Lights")
-        .body(body)
-        .show();
-}
-
 /// Background checks: shortly after launch, then every few hours.
 pub fn spawn(app: AppHandle) {
     // Dev builds have no published counterpart to compare against.
