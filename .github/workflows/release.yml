@@ -74,6 +74,8 @@ jobs:
           out="Actions-Lights_${VERSION}_universal.dmg"
           cp "$dmg" "$out"
           gh release upload "$TAG" "$out" --clobber
+          # tauri-action also uploaded it with the space turned into a dot; keep one copy.
+          gh release delete-asset "$TAG" "Actions.Lights_${VERSION}_universal.dmg" -y || true
 
       - name: Añadir instrucciones de instalación a las notas
         run: |
