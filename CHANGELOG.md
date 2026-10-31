@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/luyz2000/actions-lights/compare/v1.5.0...v1.6.0) (2026-10-31)
+
+
+### Novedades
+
+* show the app in the system language (English, Spanish, Russian, French, Japanese and Chinese), falling back to English ([fe0dfc7](https://github.com/luyz2000/actions-lights/commit/fe0dfc79922c6aee18b052ce775519af80e76c97))
+
 ## [1.5.0](https://github.com/luyz2000/actions-lights/compare/v1.4.0...v1.5.0) (2026-10-30)
 
 
