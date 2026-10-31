@@ -126,3 +126,40 @@ jobs:
           tagName: ${{ needs.release-please.outputs.tag }}
           releaseDraft: false
           includeUpdaterJson: true
+
+  # After Linux, for the same reason: one latest.json writer at a time.
+  windows:
+    name: Windows (x86_64)
+    needs: [release-please, linux]
+    if: ${{ needs.release-please.outputs.created == 'true' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Unsigned (no code-signing certificate): SmartScreen warns on first run. Uploads the
+      # NSIS installer with its signature and adds windows-x86_64 to latest.json.
+      - name: Build NSIS
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        with:
+          tagName: ${{ needs.release-please.outputs.tag }}
+          releaseDraft: false
+          includeUpdaterJson: true

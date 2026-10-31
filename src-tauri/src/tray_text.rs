@@ -138,6 +138,47 @@ pub fn tray_tooltip(cards: &[Card], now: DateTime<Utc>) -> String {
     lines.join("\n")
 }
 
+/// Windows keeps at most 127 UTF-16 units of a tray tooltip.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub const WINDOWS_TOOLTIP_MAX: usize = 127;
+
+fn utf16_len(s: &str) -> usize {
+    s.encode_utf16().count()
+}
+
+/// Cuts a tooltip to `max` UTF-16 units: whole lines while they fit, then "…" for the rest.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn fit_tooltip(text: &str, max: usize) -> String {
+    if utf16_len(text) <= max {
+        return text.to_string();
+    }
+    let mut out = String::new();
+    for line in text.lines() {
+        let sep = usize::from(!out.is_empty());
+        // Room for this line plus the trailing "\n…".
+        if utf16_len(&out) + sep + utf16_len(line) + 2 > max {
+            break;
+        }
+        if sep == 1 {
+            out.push('\n');
+        }
+        out.push_str(line);
+    }
+    if !out.is_empty() {
+        out.push_str("\n…");
+        return out;
+    }
+    // Not even the first line fits: cut it short.
+    let mut cut = String::new();
+    for ch in text.lines().next().unwrap_or("").chars() {
+        if utf16_len(&cut) + ch.len_utf16() + 1 > max {
+            break;
+        }
+        cut.push(ch);
+    }
+    format!("{}…", cut.trim_end())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -364,5 +405,39 @@ mod tests {
             "Actions Lights · Todo en orden · última ejecución hace 2h\n\
              ✓ deploy (acme/api): completado"
         );
+    }
+
+    #[test]
+    fn short_tooltip_is_kept() {
+        assert_eq!(fit_tooltip("a\nb", 10), "a\nb");
+    }
+
+    #[test]
+    fn long_tooltip_keeps_whole_lines() {
+        let text = format!("{}\n{}\n{}", "a".repeat(50), "b".repeat(50), "c".repeat(50));
+        let fit = fit_tooltip(&text, WINDOWS_TOOLTIP_MAX);
+        assert_eq!(fit, format!("{}\n{}\n…", "a".repeat(50), "b".repeat(50)));
+        assert!(utf16_len(&fit) <= WINDOWS_TOOLTIP_MAX);
+    }
+
+    #[test]
+    fn overlong_first_line_is_cut_on_a_char_boundary() {
+        // "✓" is one UTF-16 unit, "𝄞" two: the cut must never split it.
+        let text = format!("✓ {}", "𝄞".repeat(100));
+        let fit = fit_tooltip(&text, WINDOWS_TOOLTIP_MAX);
+        assert!(fit.ends_with('…'));
+        assert!(utf16_len(&fit) <= WINDOWS_TOOLTIP_MAX);
+    }
+
+    #[test]
+    fn many_workflows_fit_windows_tooltip() {
+        let now = Utc::now();
+        let cards: Vec<Card> = (0..10)
+            .map(|i| finished(&format!("workflow-{i}"), Light::Green, now, 60))
+            .collect();
+        let fit = fit_tooltip(&tray_tooltip(&cards, now), WINDOWS_TOOLTIP_MAX);
+        assert!(utf16_len(&fit) <= WINDOWS_TOOLTIP_MAX);
+        assert!(fit.starts_with("Actions Lights"));
+        assert!(fit.ends_with("\n…"));
     }
 }
