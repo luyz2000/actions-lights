@@ -53,3 +53,55 @@ jobs:
       - name: Tests de Rust
         working-directory: src-tauri
         run: cargo test --lib
+
+  linux:
+    name: Lint y tests (Linux)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Dependencias de sistema de Tauri
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            librsvg2-dev libssl-dev libxdo-dev build-essential curl wget file patchelf
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Tipos (svelte-check)
+        run: npm run check
+
+      - name: Tests de frontend
+        run: npm test
+
+      - name: Build del frontend
+        run: npm run build
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests de Rust
+        working-directory: src-tauri
+        run: cargo test --lib
+
+      # TEMP: checks the deb/AppImage bundling before it reaches a release.
+      - name: Bundle (temporal)
+        run: |
+          npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+          ls -la src-tauri/target/release/bundle/*/
+          dpkg-deb -I src-tauri/target/release/bundle/deb/*.deb
