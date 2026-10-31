@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
 
 const CATALOGS: [(&str, &str); 6] = [
     ("en", include_str!("../../src/lib/i18n/en.json")),
@@ -41,14 +41,30 @@ pub fn resolve<S: AsRef<str>>(preferred: &[S]) -> &'static str {
         .unwrap_or("en")
 }
 
-/// The language for this run, read once from the system.
+/// The language picked in Settings › General, if supported; otherwise the system's.
+pub fn choose<S: AsRef<str>>(chosen: Option<&str>, system: &[S]) -> &'static str {
+    chosen
+        .and_then(|code| CATALOGS.iter().find(|(c, _)| *c == code))
+        .map(|(c, _)| *c)
+        .unwrap_or_else(|| resolve(system))
+}
+
+/// The user's choice from the config; None follows the system.
+static CHOSEN: RwLock<Option<String>> = RwLock::new(None);
+
+pub fn set_choice(code: Option<&str>) {
+    *CHOSEN.write().unwrap() = code.map(String::from);
+}
+
+/// The language texts are shown in right now.
 pub fn locale() -> &'static str {
     // Tests assert the Spanish texts, whatever the machine's language.
     if cfg!(test) {
         return "es";
     }
-    static LOCALE: OnceLock<&'static str> = OnceLock::new();
-    LOCALE.get_or_init(|| resolve(&sys_locale::get_locales().collect::<Vec<_>>()))
+    static SYSTEM: OnceLock<Vec<String>> = OnceLock::new();
+    let system = SYSTEM.get_or_init(|| sys_locale::get_locales().collect());
+    choose(CHOSEN.read().unwrap().as_deref(), system)
 }
 
 fn lookup(code: &str, key: &str) -> String {
@@ -87,6 +103,14 @@ mod tests {
         assert_eq!(resolve(&["zh-Hans-CN"]), "zh");
         assert_eq!(resolve(&["ja_JP"]), "ja");
         assert_eq!(resolve(&["RU"]), "ru");
+    }
+
+    #[test]
+    fn a_chosen_language_wins_over_the_system() {
+        assert_eq!(choose(Some("ja"), &["es-MX"]), "ja");
+        assert_eq!(choose(None, &["es-MX"]), "es");
+        // A choice from a newer version that this one doesn't know: follow the system.
+        assert_eq!(choose(Some("de"), &["fr-FR"]), "fr");
     }
 
     #[test]

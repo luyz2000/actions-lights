@@ -76,6 +76,7 @@ pub fn run() {
 
             let config_dir = app.path().app_config_dir()?;
             let cfg = config::load(&config_dir);
+            i18n::set_choice(cfg.language.as_deref());
             let first_run = cfg.watched.is_empty();
             let autostart = cfg.autostart;
 

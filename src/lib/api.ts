@@ -76,6 +76,8 @@ export interface Config {
   autostart: boolean;
   sound: boolean;
   filters_cleared: boolean;
+  /** Language code picked in Settings; null follows the system. */
+  language: string | null;
 }
 
 export interface Repo {
@@ -131,6 +133,11 @@ export function onUpdate(cb: (u: UpdateInfo | null) => void): Promise<UnlistenFn
 
 export function onShowUpdates(cb: () => void): Promise<UnlistenFn> {
   return listen("show-updates", () => cb());
+}
+
+/** The language changed in Settings: the windows reload to redraw every text. */
+export function onLocaleChanged(cb: () => void): Promise<UnlistenFn> {
+  return listen("locale-changed", () => cb());
 }
 
 export function onDashboard(cb: (d: DashboardState) => void): Promise<UnlistenFn> {

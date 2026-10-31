@@ -15,6 +15,16 @@ export const CATALOGS: Record<Locale, Record<string, string>> = { en, es, ru, fr
 /** BCP 47 tags of the variants each catalog is written in, for Intl and `<html lang>`. */
 const TAGS: Record<Locale, string> = { en: "en-US", es: "es-MX", ru: "ru", fr: "fr", ja: "ja", zh: "zh-CN" };
 
+/** Each language in its own name, for the language picker. */
+export const LANGUAGE_NAMES: Record<Locale, string> = {
+  en: "English",
+  es: "Español",
+  ru: "Русский",
+  fr: "Français",
+  ja: "日本語",
+  zh: "中文（简体）",
+};
+
 let current: Locale = "en";
 let plurals = new Intl.PluralRules(TAGS.en);
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import "$lib/theme.css";
-  import { api, onDashboard, onUpdate, type DashboardState, type Light, type UpdateInfo } from "$lib/api";
+  import { api, onDashboard, onLocaleChanged, onUpdate, type DashboardState, type Light, type UpdateInfo } from "$lib/api";
   import { formatAgo, latestFinish } from "$lib/format";
   import { t, tn } from "$lib/i18n";
   import StatusIcon from "$lib/StatusIcon.svelte";
@@ -63,11 +63,13 @@
     api.getUpdate().then((u) => (update = u));
     const unlisten = onDashboard((d) => (dash = d));
     const unlistenUpdate = onUpdate((u) => (update = u));
+    const unlistenLocale = onLocaleChanged(() => location.reload());
     const tick = setInterval(() => (now = new Date()), 1000);
     return () => {
       clearInterval(tick);
       unlisten.then((f) => f());
       unlistenUpdate.then((f) => f());
+      unlistenLocale.then((f) => f());
     };
   });
 </script>

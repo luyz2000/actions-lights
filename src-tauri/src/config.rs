@@ -63,6 +63,7 @@ mod tests {
             autostart: false,
             sound: false,
             filters_cleared: true,
+            language: Some("fr".into()),
         };
         save(&dir, &cfg).unwrap();
         assert_eq!(load(&dir), cfg);

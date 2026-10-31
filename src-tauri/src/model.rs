@@ -64,6 +64,9 @@ pub struct Config {
     /// Set once the auto-filled branch/event filters from older versions were removed.
     #[serde(default)]
     pub filters_cleared: bool,
+    /// Language code from Settings › General; None follows the system.
+    #[serde(default)]
+    pub language: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -77,6 +80,7 @@ impl Default for Config {
             autostart: true,
             sound: true,
             filters_cleared: true,
+            language: None,
         }
     }
 }

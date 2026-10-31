@@ -101,12 +101,26 @@ fn toggle_popover(app: &AppHandle) {
     let _ = w.set_focus();
 }
 
-pub fn build(app: &AppHandle) -> tauri::Result<()> {
+fn menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let refresh = MenuItem::with_id(app, "refresh", t("tray.menu.refresh"), true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", t("tray.menu.settings"), true, None::<&str>)?;
     let updates = MenuItem::with_id(app, "updates", t("tray.menu.updates"), true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", t("tray.menu.quit"), true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&refresh, &settings, &updates, &quit])?;
+    Menu::with_items(app, &[&refresh, &settings, &updates, &quit])
+}
+
+/// After the language changes in Settings: menu and window title in the new language.
+pub fn relabel(app: &AppHandle) {
+    if let (Some(tray), Ok(menu)) = (app.tray_by_id(TRAY_ID), menu(app)) {
+        let _ = tray.set_menu(Some(menu));
+    }
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.set_title(&t("settings.window_title"));
+    }
+}
+
+pub fn build(app: &AppHandle) -> tauri::Result<()> {
+    let menu = menu(app)?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(Image::new_owned(icon::render_idle(), ICON_PX, ICON_PX))

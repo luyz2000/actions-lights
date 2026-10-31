@@ -67,7 +67,16 @@ pub fn get_config(ctx: State<'_, AppCtx>) -> Config {
 pub fn save_config(app: AppHandle, ctx: State<'_, AppCtx>, cfg: Config) -> Result<(), String> {
     config::save(&ctx.config_dir, &cfg).map_err(|e| e.to_string())?;
     apply_autostart(&app, cfg.autostart);
+    let relabel = ctx.cfg.read().unwrap().language != cfg.language;
+    if relabel {
+        crate::i18n::set_choice(cfg.language.as_deref());
+    }
     *ctx.cfg.write().unwrap() = cfg;
+    if relabel {
+        tray::relabel(&app);
+        let _ = app.emit("locale-changed", crate::i18n::locale());
+    }
+    // The next cycle also redraws the tray text in the new language.
     ctx.wake.notify_one();
     Ok(())
 }

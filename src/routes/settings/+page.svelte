@@ -3,16 +3,18 @@
   import { getVersion } from "@tauri-apps/api/app";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import "$lib/theme.css";
-  import { t } from "$lib/i18n";
-  import { api, onShowUpdates, type AuthStatus, type Config, type NotificationStatus, type Repo, type UpdateInfo, type WatchedWorkflow, type Workflow } from "$lib/api";
+  import { LANGUAGE_NAMES, t } from "$lib/i18n";
+  import { api, onLocaleChanged, onShowUpdates, type AuthStatus, type Config, type NotificationStatus, type Repo, type UpdateInfo, type WatchedWorkflow, type Workflow } from "$lib/api";
   import Account from "./Account.svelte";
   import RepoList from "./RepoList.svelte";
   import WorkflowList from "./WorkflowList.svelte";
 
   type Section = "repos" | "account" | "general";
 
-  let section = $state<Section>("repos");
-  let cfg = $state<Config>({ watched: [], autostart: true, sound: true, filters_cleared: true });
+  // A language change reloads the window and comes back to General.
+  const reopened = location.hash === "#general";
+  let section = $state<Section>(reopened ? "general" : "repos");
+  let cfg = $state<Config>({ watched: [], autostart: true, sound: true, filters_cleared: true, language: null });
   let auth = $state<AuthStatus | null>(null);
   let notifications = $state<NotificationStatus | null>(null);
   let repos = $state<Repo[]>([]);
@@ -139,7 +141,7 @@
     Promise.all([api.getConfig(), api.authStatus()]).then(async ([c, a]) => {
       cfg = c;
       auth = a;
-      if (a.source === "none" && c.watched.length === 0) section = "account";
+      if (!reopened && a.source === "none" && c.watched.length === 0) section = "account";
       await loadRepos();
     });
     const unlisten = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
@@ -150,9 +152,14 @@
       section = "general";
       checkUpdates();
     });
+    const unlistenLocale = onLocaleChanged(() => {
+      location.hash = "general";
+      location.reload();
+    });
     return () => {
       unlisten.then((f) => f());
       unlistenUpdates.then((f) => f());
+      unlistenLocale.then((f) => f());
     };
   });
 
@@ -244,6 +251,16 @@
               <div class="muted small">{t("general.autostart_hint")}</div>
             </div>
             <input id="autostart" class="switch" type="checkbox" bind:checked={cfg.autostart} onchange={save} />
+          </label>
+          <label class="setting" for="language">
+            <div>
+              <div class="label">{t("general.language")}</div>
+              <div class="muted small">{t("general.language_hint")}</div>
+            </div>
+            <select id="language" class="field" bind:value={cfg.language} onchange={save}>
+              <option value={null}>{t("general.language_system")}</option>
+              {#each Object.entries(LANGUAGE_NAMES) as [code, name] (code)}<option value={code}>{name}</option>{/each}
+            </select>
           </label>
           <label class="setting" for="sound">
             <div>

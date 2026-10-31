@@ -48,6 +48,7 @@ const config: Config = {
   autostart: true,
   sound: true,
   filters_cleared: true,
+  language: null,
   watched: [
     { repo: "acme/api", workflow_id: 1, workflow_name: "Deploy", branch: "release", event: "push", notify: { on_success: true, on_failure: true, on_start: false } },
   ],
