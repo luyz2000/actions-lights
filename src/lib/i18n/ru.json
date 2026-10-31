@@ -3,6 +3,7 @@
   "tray.menu.settings": "Репозитории и workflow…",
   "tray.menu.updates": "Проверить обновления",
   "tray.menu.quit": "Выйти",
+  "tray.menu.open": "Показать статус",
   "tray.waiting": "ожидание",
   "tray.running_many": "Выполняется: {n} · {elapsed}",
   "tray.no_workflows": "Actions Lights · нет workflow",

@@ -3,6 +3,7 @@
   "tray.menu.settings": "リポジトリとワークフロー…",
   "tray.menu.updates": "アップデートを確認",
   "tray.menu.quit": "終了",
+  "tray.menu.open": "ステータスを表示",
   "tray.waiting": "待機中",
   "tray.running_many": "{n}件実行中 · {elapsed}",
   "tray.no_workflows": "Actions Lights · ワークフローなし",
