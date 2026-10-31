@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/luyz2000/actions-lights/compare/v1.7.0...v1.8.0) (2026-10-31)
+
+
+### Novedades
+
+* run on Linux (deb and AppImage), opening the status panel from the tray menu ([79ff5a3](https://github.com/luyz2000/actions-lights/commit/79ff5a3fc66e953eb482b5220d2fbc84e366324c))
+
 ## [1.7.0](https://github.com/luyz2000/actions-lights/compare/v1.6.0...v1.7.0) (2026-10-31)
 
 
