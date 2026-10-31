@@ -90,6 +90,14 @@ fn toggle_popover(app: &AppHandle) {
     if now_ms().saturating_sub(LAST_BLUR_HIDE_MS.load(Ordering::Relaxed)) < 300 {
         return;
     }
+    show_popover(app, &w);
+}
+
+fn show_popover(app: &AppHandle, w: &tauri::WebviewWindow) {
+    // Linux trays report no clicks, hence no tray position: open it under the panel's corner.
+    #[cfg(target_os = "linux")]
+    let _ = w.move_window(Position::TopRight);
+    #[cfg(not(target_os = "linux"))]
     let _ = w.move_window(Position::TrayCenter);
     // Showing the panel without activating the app keeps it over fullscreen apps.
     #[cfg(target_os = "macos")]
@@ -106,6 +114,13 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let settings = MenuItem::with_id(app, "settings", t("tray.menu.settings"), true, None::<&str>)?;
     let updates = MenuItem::with_id(app, "updates", t("tray.menu.updates"), true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", t("tray.menu.quit"), true, None::<&str>)?;
+    // Linux trays (AppIndicator) only show the menu, so the popover needs an entry of its own.
+    #[cfg(target_os = "linux")]
+    let menu = {
+        let open = MenuItem::with_id(app, "open", t("tray.menu.open"), true, None::<&str>)?;
+        Menu::with_items(app, &[&open, &refresh, &settings, &updates, &quit])?
+    };
+    #[cfg(not(target_os = "linux"))]
     let menu = Menu::with_items(app, &[&refresh, &settings, &updates, &quit])?;
 
     TrayIconBuilder::with_id(TRAY_ID)
@@ -122,6 +137,11 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
                     ctx.refresh_auth().await;
                     ctx.wake.notify_one();
                 });
+            }
+            "open" => {
+                if let Some(w) = app.get_webview_window("popover") {
+                    show_popover(app, &w);
+                }
             }
             "settings" => open_settings(app),
             "updates" => {

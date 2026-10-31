@@ -3,6 +3,7 @@
   "tray.menu.settings": "Dépôts et workflows…",
   "tray.menu.updates": "Rechercher des mises à jour",
   "tray.menu.quit": "Quitter",
+  "tray.menu.open": "Afficher l’état",
   "tray.waiting": "en attente",
   "tray.running_many": "{n} en cours · {elapsed}",
   "tray.no_workflows": "Actions Lights · aucun workflow",

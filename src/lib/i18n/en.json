@@ -3,6 +3,7 @@
   "tray.menu.settings": "Repos & workflows…",
   "tray.menu.updates": "Check for updates",
   "tray.menu.quit": "Quit",
+  "tray.menu.open": "Show status",
   "tray.waiting": "waiting",
   "tray.running_many": "{n} running · {elapsed}",
   "tray.no_workflows": "Actions Lights · no workflows",
