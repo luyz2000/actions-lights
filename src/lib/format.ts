@@ -1,4 +1,5 @@
 import type { Card } from "./api";
+import { t } from "./i18n";
 
 
 export function formatDuration(secs: number): string {
@@ -10,10 +11,10 @@ export function formatDuration(secs: number): string {
 
 export function formatAgo(iso: string, now: Date): string {
   const secs = Math.max(0, (now.getTime() - new Date(iso).getTime()) / 1000);
-  if (secs < 60) return "hace un momento";
-  if (secs < 3600) return `hace ${Math.floor(secs / 60)}m`;
-  if (secs < 86400) return `hace ${Math.floor(secs / 3600)}h`;
-  return `hace ${Math.floor(secs / 86400)}d`;
+  if (secs < 60) return t("ago.now");
+  if (secs < 3600) return t("ago.minutes", { n: Math.floor(secs / 60) });
+  if (secs < 86400) return t("ago.hours", { n: Math.floor(secs / 3600) });
+  return t("ago.days", { n: Math.floor(secs / 86400) });
 }
 
 /** Most recent completion among successful runs (ISO strings compare chronologically). */

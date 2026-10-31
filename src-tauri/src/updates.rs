@@ -48,7 +48,7 @@ pub async fn install(app: &AppHandle) -> Result<(), String> {
         .check()
         .await
         .map_err(|e| e.to_string())?
-        .ok_or("No hay ninguna actualización pendiente")?;
+        .ok_or_else(|| crate::i18n::t("updates.none_pending"))?;
     update
         .download_and_install(|_, _| {}, || {})
         .await

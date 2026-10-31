@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api, type Card } from "$lib/api";
   import { formatAgo, formatDuration } from "$lib/format";
+  import { t } from "$lib/i18n";
   import StatusIcon from "$lib/StatusIcon.svelte";
 
   let { card, now }: { card: Card; now: Date } = $props();
@@ -15,7 +16,7 @@
   });
   const sub = $derived(
     card.error ??
-      (card.failed_step ? `Falló en ${card.failed_step}` : null) ??
+      (card.failed_step ? t("card.failed_at", { step: card.failed_step }) : null) ??
       card.label ??
       (running ? card.step_label : null),
   );
@@ -26,7 +27,7 @@
   }
 </script>
 
-<button class="row {card.light}" disabled={!card.run_url} onclick={open} title={card.run_url ? "Abrir el run en GitHub" : ""}>
+<button class="row {card.light}" disabled={!card.run_url} onclick={open} title={card.run_url ? t("card.open") : ""}>
   <StatusIcon light={card.light} />
   <div class="body">
     <div class="line">
@@ -52,7 +53,7 @@
     {#if sub || (running && card.expected_secs)}
       <div class="sub" class:err={!!card.error || !!card.failed_step}>
         <span class="text">{sub ?? ""}</span>
-        {#if running && card.expected_secs}<span class="eta">~{formatDuration(card.expected_secs)} en total</span>{/if}
+        {#if running && card.expected_secs}<span class="eta">{t("card.eta", { duration: formatDuration(card.expected_secs) })}</span>{/if}
       </div>
     {/if}
   </div>

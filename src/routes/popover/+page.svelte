@@ -3,6 +3,7 @@
   import "$lib/theme.css";
   import { api, onDashboard, onUpdate, type DashboardState, type Light, type UpdateInfo } from "$lib/api";
   import { formatAgo, latestFinish } from "$lib/format";
+  import { t, tn } from "$lib/i18n";
   import StatusIcon from "$lib/StatusIcon.svelte";
   import Card from "./Card.svelte";
 
@@ -33,19 +34,19 @@
     counts.red ? "red" : counts.yellow ? "yellow" : counts.green ? "green" : "gray",
   );
   const headline = $derived.by(() => {
-    if (!dash?.last_updated) return "Consultando GitHub…";
-    if (counts.red) return counts.red === 1 ? "1 workflow falló" : `${counts.red} workflows fallaron`;
-    if (counts.yellow) return counts.yellow === 1 ? "1 workflow en curso" : `${counts.yellow} workflows en curso`;
-    if (counts.green) return "Todo en orden";
-    return "Sin actividad";
+    if (!dash?.last_updated) return t("popover.checking");
+    if (counts.red) return tn("popover.failed", counts.red);
+    if (counts.yellow) return tn("popover.running", counts.yellow);
+    if (counts.green) return t("popover.all_clear");
+    return t("popover.no_activity");
   });
   const cards = $derived((dash?.groups ?? []).flatMap((g) => g.cards));
   const calmSince = $derived(counts.red || counts.yellow ? null : latestFinish(cards));
   const detail = $derived(
     [
-      counts.yellow && counts.red ? `${counts.yellow} en curso` : null,
-      counts.green && (counts.red || counts.yellow) ? `${counts.green} OK` : null,
-      calmSince ? `Última ejecución ${formatAgo(calmSince, now)}` : null,
+      counts.yellow && counts.red ? t("popover.detail_running", { count: counts.yellow }) : null,
+      counts.green && (counts.red || counts.yellow) ? t("popover.detail_ok", { count: counts.green }) : null,
+      calmSince ? t("popover.last_run", { ago: formatAgo(calmSince, now) }) : null,
     ]
       .filter(Boolean)
       .join(" · "),
@@ -78,10 +79,10 @@
       <div class="headline">{headline}</div>
       {#if detail}<div class="detail">{detail}</div>{/if}
     </div>
-    <button class="icon-btn" class:spinning={refreshing} onclick={refresh} title="Actualizar ahora" aria-label="Actualizar ahora">
+    <button class="icon-btn" class:spinning={refreshing} onclick={refresh} title={t("popover.refresh")} aria-label={t("popover.refresh")}>
       <svg width="15" height="15" viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
     </button>
-    <button class="icon-btn" onclick={() => api.openSettings()} title="Ajustes" aria-label="Ajustes">
+    <button class="icon-btn" onclick={() => api.openSettings()} title={t("popover.settings")} aria-label={t("popover.settings")}>
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg>
     </button>
   </header>
@@ -89,11 +90,11 @@
   {#if update}
     <div class="update">
       <div>
-        <div class="update-title">Versión {update.version} disponible</div>
-        {#if updateError}<div class="update-error">No se pudo actualizar: {updateError}</div>{/if}
+        <div class="update-title">{t("update.available", { version: update.version })}</div>
+        {#if updateError}<div class="update-error">{t("update.install_failed", { error: updateError })}</div>{/if}
       </div>
       <button class="btn primary" disabled={installing} onclick={installUpdate}>
-        {installing ? "Actualizando…" : "Actualizar y reiniciar"}
+        {installing ? t("update.installing_short") : t("update.install")}
       </button>
     </div>
   {/if}
@@ -109,9 +110,9 @@
   <div class="list">
     {#if dash && dash.groups.length === 0}
       <div class="empty">
-        <p class="title">Aún no vigilas ningún workflow</p>
-        <p class="muted">Elige los repos y workflows de deploy que quieres seguir desde la barra.</p>
-        <button class="btn primary" onclick={() => api.openSettings()}>Elegir workflows</button>
+        <p class="title">{t("popover.empty_title")}</p>
+        <p class="muted">{t("popover.empty_body")}</p>
+        <button class="btn primary" onclick={() => api.openSettings()}>{t("popover.choose")}</button>
       </div>
     {:else if dash}
       {#each dash.groups as group (group.repo)}
@@ -127,10 +128,10 @@
 
   <footer>
     <span class="muted">
-      {dash?.last_updated ? `Actualizado ${formatAgo(dash.last_updated, now)}` : "Conectando…"}
+      {dash?.last_updated ? t("popover.updated", { ago: formatAgo(dash.last_updated, now) }) : t("popover.connecting")}
       {#if dash?.auth.login} · @{dash.auth.login}{/if}
     </span>
-    <button class="text-btn" onclick={() => api.quit()}>Salir</button>
+    <button class="text-btn" onclick={() => api.quit()}>{t("popover.quit")}</button>
   </footer>
 </main>
 

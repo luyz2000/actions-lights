@@ -1,5 +1,6 @@
 //! "Iniciar sesión con GitHub" via the OAuth device flow (no redirect server needed).
 
+use crate::i18n::{t, tf};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -51,7 +52,7 @@ pub async fn request_code(base: &str, client_id: &str) -> Result<DeviceCode, Str
         .map_err(|e| e.to_string())?
         .json()
         .await
-        .map_err(|e| format!("Respuesta inválida de GitHub: {e}"))
+        .map_err(|e| tf("oauth.invalid_response", &[("error", &e)]))
 }
 
 pub async fn poll_once(
@@ -72,16 +73,19 @@ pub async fn poll_once(
         .map_err(|e| e.to_string())?
         .json()
         .await
-        .map_err(|e| format!("Respuesta inválida de GitHub: {e}"))?;
+        .map_err(|e| tf("oauth.invalid_response", &[("error", &e)]))?;
     match (r.access_token, r.error.as_deref()) {
         (Some(t), _) => Ok(PollResult::Token(t)),
         (None, Some("authorization_pending")) => Ok(PollResult::Pending),
         (None, Some("slow_down")) => Ok(PollResult::SlowDown),
         (None, Some("access_denied")) => Ok(PollResult::Denied),
         (None, Some("expired_token")) => Ok(PollResult::Expired),
-        (None, other) => Err(format!(
-            "Error de inicio de sesión: {}",
-            other.unwrap_or("desconocido")
+        (None, other) => Err(tf(
+            "oauth.error",
+            &[(
+                "error",
+                &other.map_or_else(|| t("oauth.unknown"), String::from),
+            )],
         )),
     }
 }

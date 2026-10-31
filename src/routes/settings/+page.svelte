@@ -3,6 +3,7 @@
   import { getVersion } from "@tauri-apps/api/app";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import "$lib/theme.css";
+  import { t } from "$lib/i18n";
   import { api, onShowUpdates, type AuthStatus, type Config, type NotificationStatus, type Repo, type UpdateInfo, type WatchedWorkflow, type Workflow } from "$lib/api";
   import Account from "./Account.svelte";
   import RepoList from "./RepoList.svelte";
@@ -32,7 +33,7 @@
       update = await api.checkUpdates();
       updateState = update ? "idle" : "latest";
     } catch (e) {
-      updateState = `No se pudo comprobar: ${e}`;
+      updateState = t("update.check_failed", { error: String(e) });
     }
   }
 
@@ -41,7 +42,7 @@
     try {
       await api.installUpdate(); // restarts the app on success
     } catch (e) {
-      updateState = `No se pudo actualizar: ${e}`;
+      updateState = t("update.install_failed", { error: String(e) });
     }
   }
 
@@ -60,7 +61,7 @@
     } catch (e) {
       reposError =
         auth?.source === "none"
-          ? "Sin cuenta conectada no podemos listar tus repos. Conecta una en Cuenta o añade un repo público abajo."
+          ? t("repos.no_account_error")
           : String(e);
     }
     // Watched repos that the listing doesn't include (e.g. public repos of others).
@@ -113,7 +114,7 @@
       await api.saveConfig($state.snapshot(cfg));
       saved = "ok";
     } catch (e) {
-      saved = `No se pudo guardar: ${e}`;
+      saved = t("settings.save_failed", { error: String(e) });
     }
   }
 
@@ -156,9 +157,9 @@
   });
 
   const NAV: { id: Section; label: string; icon: string }[] = [
-    { id: "repos", label: "Repos y workflows", icon: "M2 3.5h12M2 8h12M2 12.5h7" },
-    { id: "account", label: "Cuenta", icon: "M8 8a2.8 2.8 0 1 0 0-5.6A2.8 2.8 0 0 0 8 8zm-5 5.6c.6-2.4 2.6-3.8 5-3.8s4.4 1.4 5 3.8" },
-    { id: "general", label: "General", icon: "M3 4.5h10M3 11.5h10M6 2.8v3.4M10 9.8v3.4" },
+    { id: "repos", label: t("nav.repos"), icon: "M2 3.5h12M2 8h12M2 12.5h7" },
+    { id: "account", label: t("nav.account"), icon: "M8 8a2.8 2.8 0 1 0 0-5.6A2.8 2.8 0 0 0 8 8zm-5 5.6c.6-2.4 2.6-3.8 5-3.8s4.4 1.4 5 3.8" },
+    { id: "general", label: t("nav.general"), icon: "M3 4.5h10M3 11.5h10M6 2.8v3.4M10 9.8v3.4" },
   ];
 </script>
 
@@ -183,11 +184,11 @@
         <svg width="15" height="15" viewBox="0 0 16 16"><path d={item.icon} fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
         <span>{item.label}</span>
         {#if item.id === "repos" && cfg.watched.length}<span class="badge">{cfg.watched.length}</span>{/if}
-        {#if item.id === "account" && auth?.source === "none"}<span class="dot-warn" title="Sin cuenta"></span>{/if}
+        {#if item.id === "account" && auth?.source === "none"}<span class="dot-warn" title={t("nav.no_account")}></span>{/if}
       </button>
     {/each}
     <div class="nav-foot muted">
-      {#if saved === "ok"}Cambios guardados{:else if saved}<span class="error">{saved}</span>{/if}
+      {#if saved === "ok"}{t("settings.saved")}{:else if saved}<span class="error">{saved}</span>{/if}
     </div>
   </nav>
 
@@ -195,8 +196,8 @@
     {#if section === "repos"}
       <div class="repos">
         <header class="page-head">
-          <h1>Repos y workflows</h1>
-          <p class="muted">Activa los workflows que quieres ver en la barra. Normalmente, el deploy de tu rama de release.</p>
+          <h1>{t("repos.title")}</h1>
+          <p class="muted">{t("repos.subtitle")}</p>
         </header>
         <div class="cols">
           <div class="left">
@@ -224,7 +225,7 @@
                 notificationsAvailable={notifications?.available !== false}
               />
             {:else}
-              <p class="muted hint">Elige un repo para ver sus workflows.</p>
+              <p class="muted hint">{t("repos.pick_hint")}</p>
             {/if}
           </div>
         </div>
@@ -234,54 +235,54 @@
     {:else}
       <div class="scroll general">
         <header class="page-head">
-          <h1>General</h1>
+          <h1>{t("general.title")}</h1>
         </header>
         <div class="group">
           <label class="setting" for="autostart">
             <div>
-              <div class="label">Abrir al iniciar sesión</div>
-              <div class="muted small">La app arranca sola y vive en la barra de menús.</div>
+              <div class="label">{t("general.autostart")}</div>
+              <div class="muted small">{t("general.autostart_hint")}</div>
             </div>
             <input id="autostart" class="switch" type="checkbox" bind:checked={cfg.autostart} onchange={save} />
           </label>
           <label class="setting" for="sound">
             <div>
-              <div class="label">Sonido en notificaciones {#if notifications?.available === false}<span class="soon">Próximamente</span>{/if}</div>
-              <div class="muted small">Un sonido distinto cuando un workflow termina bien y cuando falla.</div>
+              <div class="label">{t("general.sound")} {#if notifications?.available === false}<span class="soon">{t("settings.soon")}</span>{/if}</div>
+              <div class="muted small">{t("general.sound_hint")}</div>
             </div>
             <input id="sound" class="switch" type="checkbox" bind:checked={cfg.sound} onchange={save} disabled={notifications?.available === false} />
           </label>
           <div class="setting">
             <div>
-              <div class="label">Probar notificaciones {#if notifications?.available === false}<span class="soon">Próximamente</span>{/if}</div>
-              <div class="muted small">Envía una notificación de ejemplo; al pulsarla se abre el enlace en GitHub.</div>
+              <div class="label">{t("general.test")} {#if notifications?.available === false}<span class="soon">{t("settings.soon")}</span>{/if}</div>
+              <div class="muted small">{t("general.test_hint")}</div>
             </div>
-            <button class="btn" disabled={notifications?.available === false} onclick={() => api.testNotification()}>Enviar notificación de prueba</button>
+            <button class="btn" disabled={notifications?.available === false} onclick={() => api.testNotification()}>{t("general.test_button")}</button>
           </div>
           <div class="setting">
             <div>
-              <div class="label">Frecuencia de consulta</div>
-              <div class="muted small">Cada 15 s si algo está corriendo, cada 60 s en reposo y cada 5 min sin cuenta. Se espacia sola si el límite de la API baja.</div>
+              <div class="label">{t("general.polling")}</div>
+              <div class="muted small">{t("general.polling_hint")}</div>
             </div>
           </div>
         </div>
         <div class="group">
           <div class="setting">
             <div>
-              <div class="label">Versión {version}</div>
+              <div class="label">{t("general.version", { version })}</div>
               <div class="muted small">
-                {#if updateState === "checking"}Buscando actualizaciones…
-                {:else if updateState === "installing"}Descargando e instalando; la app se reiniciará sola.
+                {#if updateState === "checking"}{t("update.checking")}
+                {:else if updateState === "installing"}{t("update.installing")}
                 {:else if updateState !== "idle" && updateState !== "latest"}<span class="error">{updateState}</span>
-                {:else if update}Versión {update.version} disponible.
-                {:else if updateState === "latest"}Tienes la última versión.
-                {:else}La app busca actualizaciones sola cada 6 horas.{/if}
+                {:else if update}{t("update.available_short", { version: update.version })}
+                {:else if updateState === "latest"}{t("update.latest")}
+                {:else}{t("update.auto")}{/if}
               </div>
             </div>
             {#if update}
-              <button class="btn primary" disabled={updateState === "installing"} onclick={installUpdate}>Actualizar y reiniciar</button>
+              <button class="btn primary" disabled={updateState === "installing"} onclick={installUpdate}>{t("update.install")}</button>
             {:else}
-              <button class="btn" disabled={updateState === "checking"} onclick={checkUpdates}>Buscar actualizaciones</button>
+              <button class="btn" disabled={updateState === "checking"} onclick={checkUpdates}>{t("update.check")}</button>
             {/if}
           </div>
         </div>

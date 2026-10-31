@@ -1,3 +1,4 @@
+use crate::i18n::{t, tf};
 use crate::model::{Card, Light};
 use chrono::{DateTime, Utc};
 
@@ -37,7 +38,7 @@ pub fn tray_title(cards: &[Card], now: DateTime<Utc>) -> Option<String> {
         [c] => {
             let mut parts = vec![short_name(&c.workflow_name)];
             if c.label.is_some() {
-                parts.push("esperando".into());
+                parts.push(t("tray.waiting"));
             } else {
                 parts.extend(c.step_short.clone());
                 parts.push(elapsed(c, now));
@@ -53,10 +54,9 @@ pub fn tray_title(cards: &[Card], now: DateTime<Utc>) -> Option<String> {
                         .total_cmp(&b.progress.unwrap_or(0.0))
                 })
                 .unwrap();
-            return Some(format!(
-                "{} en curso · {}",
-                many.len(),
-                elapsed(slowest, now)
+            return Some(tf(
+                "tray.running_many",
+                &[("n", &many.len()), ("elapsed", &elapsed(slowest, now))],
             ));
         }
     }
@@ -91,12 +91,12 @@ pub fn all_clear(cards: &[Card], now: DateTime<Utc>) -> Option<String> {
         .max()?;
     let secs = (now - latest).num_seconds().max(0);
     let ago = match secs {
-        s if s < 60 => "hace un momento".to_string(),
-        s if s < 3600 => format!("hace {}m", s / 60),
-        s if s < 86400 => format!("hace {}h", s / 3600),
-        s => format!("hace {}d", s / 86400),
+        s if s < 60 => t("ago.now"),
+        s if s < 3600 => tf("ago.minutes", &[("n", &(s / 60))]),
+        s if s < 86400 => tf("ago.hours", &[("n", &(s / 3600))]),
+        s => tf("ago.days", &[("n", &(s / 86400))]),
     };
-    Some(format!("Todo en orden · última ejecución {ago}"))
+    Some(tf("tray.all_clear", &[("ago", &ago)]))
 }
 
 /// The tray shows the app glyph instead of a light when there is nothing to report.
@@ -107,7 +107,7 @@ pub fn shows_idle_icon(overall: Light, title: Option<&str>) -> bool {
 /// One line per watched workflow, for the tray tooltip.
 pub fn tray_tooltip(cards: &[Card], now: DateTime<Utc>) -> String {
     if cards.is_empty() {
-        return "Actions Lights · sin workflows".into();
+        return t("tray.no_workflows");
     }
     let header = match all_clear(cards, now) {
         Some(calm) => format!("Actions Lights · {calm}"),
@@ -121,20 +121,17 @@ pub fn tray_tooltip(cards: &[Card], now: DateTime<Utc>) -> String {
                 c.label
                     .clone()
                     .or_else(|| c.step_label.clone())
-                    .unwrap_or_else(|| "en curso".into()),
+                    .unwrap_or_else(|| t("tooltip.running")),
             ),
-            Light::Green => ("✓", "completado".into()),
+            Light::Green => ("✓", t("tooltip.succeeded")),
             Light::Red => (
                 "✗",
                 c.failed_step
                     .as_ref()
-                    .map(|s| format!("falló en {s}"))
-                    .unwrap_or_else(|| "falló".into()),
+                    .map(|s| tf("tooltip.failed_at", &[("step", s)]))
+                    .unwrap_or_else(|| t("tooltip.failed")),
             ),
-            Light::Gray => (
-                "○",
-                c.error.clone().unwrap_or_else(|| "sin ejecuciones".into()),
-            ),
+            Light::Gray => ("○", c.error.clone().unwrap_or_else(|| t("tooltip.no_runs"))),
         };
         lines.push(format!("{mark} {} ({}): {status}", c.workflow_name, c.repo));
     }

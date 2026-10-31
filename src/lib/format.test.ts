@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Card } from "./api";
 import { formatAgo, formatDuration, latestFinish } from "./format";
+import { setLocale } from "./i18n";
+
+setLocale("es");
 
 describe("formatDuration", () => {
   it("formats seconds, minutes and hours", () => {

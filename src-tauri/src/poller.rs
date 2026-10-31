@@ -1,4 +1,5 @@
 use crate::github::{ApiError, GithubApi, Job, RateInfo, failed_step, steps_of};
+use crate::i18n::{t, tf};
 use crate::model::{Card, Config, Light, RepoGroup, RunSnapshot, WatchedWorkflow};
 use crate::notify_rules::{NotifyKind, Seen, decide};
 use crate::progress::{estimate, median_secs, step_label, step_short};
@@ -195,13 +196,13 @@ pub fn notification_text(
     expected_secs: Option<u64>,
 ) -> (String, String) {
     let title = match kind {
-        NotifyKind::Succeeded => format!("✅ {} completado", w.workflow_name),
-        NotifyKind::Failed => format!("❌ {} falló", w.workflow_name),
-        NotifyKind::Started => format!("🟡 {} en curso", w.workflow_name),
+        NotifyKind::Succeeded => tf("notify.succeeded", &[("name", &w.workflow_name)]),
+        NotifyKind::Failed => tf("notify.failed", &[("name", &w.workflow_name)]),
+        NotifyKind::Started => tf("notify.started", &[("name", &w.workflow_name)]),
     };
     let mut parts = Vec::new();
     if let (NotifyKind::Failed, Some(step)) = (kind, failed_step) {
-        parts.push(format!("Falló en «{step}»"));
+        parts.push(tf("notify.failed_at", &[("step", &step)]));
     }
     parts.push(w.repo.clone());
     parts.extend(run.head_branch.clone());
@@ -209,7 +210,7 @@ pub fn notification_text(
     match kind {
         NotifyKind::Started => {
             if let Some(secs) = expected_secs {
-                parts.push(format!("~{}m estimado", secs.div_ceil(60)));
+                parts.push(tf("notify.estimated", &[("n", &secs.div_ceil(60))]));
             }
         }
         _ => {
@@ -235,28 +236,23 @@ fn banner_for(
     has_token: bool,
     stretched_to: Option<std::time::Duration>,
 ) -> Banner {
-    let text = |s: &str| Some(s.to_string());
+    let text = |key: &str| Some(t(key));
     match auth_error {
         Some(ApiError::Sso { url }) => Banner {
-            text: text("Autoriza el token para la organización (SSO) — clic para abrir"),
+            text: text("banner.sso"),
             url: url.clone(),
         },
         Some(ApiError::Unauthorized) => Banner {
-            text: text(
-                "Sesión de GitHub inválida: revisa `gh auth login` o el token en Repos y workflows…",
-            ),
+            text: text("banner.unauthorized"),
             url: None,
         },
         _ if !has_token => Banner {
-            text: text("Sin token: solo repos públicos, actualizando cada 5 min"),
+            text: text("banner.no_token"),
             url: None,
         },
         _ => match stretched_to {
             Some(d) => Banner {
-                text: Some(format!(
-                    "Límite de la API bajo: actualizando cada {} min",
-                    d.as_secs().div_ceil(60)
-                )),
+                text: Some(tf("banner.rate_low", &[("n", &d.as_secs().div_ceil(60))])),
                 url: None,
             },
             None => Banner::default(),

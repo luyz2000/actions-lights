@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { NotifyPrefs, Repo, WatchedWorkflow, Workflow } from "$lib/api";
+  import { t } from "$lib/i18n";
 
   let {
     repo,
@@ -47,15 +48,15 @@
 <div class="col">
   <div class="title">
     <h2>{repo.full_name}</h2>
-    <span class="muted">Rama por defecto <span class="branch">{repo.default_branch}</span></span>
+    <span class="muted">{t("wf.default_branch")} <span class="branch">{repo.default_branch}</span></span>
   </div>
 
   {#if loading}
-    <p class="muted">Cargando workflows…</p>
+    <p class="muted">{t("wf.loading")}</p>
   {:else if error}
     <p class="error">{error}</p>
   {:else if workflows.length === 0}
-    <p class="muted">Este repo no tiene workflows de GitHub Actions.</p>
+    <p class="muted">{t("wf.none")}</p>
   {/if}
 
   <div class="list">
@@ -67,38 +68,38 @@
             <span class="name">{wf.name}</span>
             <span class="path">{wf.path.replace(".github/workflows/", "")}</span>
           </div>
-          {#if wf.state !== "active"}<span class="muted small">desactivado</span>{/if}
+          {#if wf.state !== "active"}<span class="muted small">{t("wf.disabled")}</span>{/if}
           <input id="wf-{wf.id}" class="switch" type="checkbox" checked={!!entry} onchange={(e) => toggle(wf, e.currentTarget.checked)} />
         </label>
         {#if entry}
           <details class="filter" open={!!(entry.branch || entry.event)}>
-            <summary>Filtrar por rama o evento</summary>
-            <p class="muted">Sin filtro se vigila la última ejecución, venga de donde venga. Úsalo si este workflow también corre, por ejemplo, en pull requests y no quieres que cambien el semáforo.</p>
+            <summary>{t("wf.filter")}</summary>
+            <p class="muted">{t("wf.filter_hint")}</p>
             <div class="opts">
               <label for="br-{wf.id}">
-                <span>Rama</span>
+                <span>{t("wf.branch")}</span>
                 <input
                   id="br-{wf.id}"
                   class="field mono"
-                  placeholder="cualquiera"
+                  placeholder={t("wf.any")}
                   value={entry.branch ?? ""}
                   onchange={(e) => update(entry, { branch: e.currentTarget.value.trim() || null })}
                 />
               </label>
               <label for="ev-{wf.id}">
-                <span>Evento</span>
+                <span>{t("wf.event")}</span>
                 <select id="ev-{wf.id}" class="field" value={entry.event ?? ""} onchange={(e) => update(entry, { event: e.currentTarget.value || null })}>
-                  <option value="">cualquiera</option>
+                  <option value="">{t("wf.any")}</option>
                   {#each EVENTS as ev (ev)}<option value={ev}>{ev}</option>{/each}
                 </select>
               </label>
             </div>
           </details>
           <div class="notify">
-            <span class="muted">Avisarme{#if !notificationsAvailable}<span class="soon">Próximamente</span>{/if}</span>
-            <label><input type="checkbox" disabled={!notificationsAvailable} checked={entry.notify.on_success} onchange={(e) => setNotify(entry, "on_success", e.currentTarget.checked)} /> al terminar bien</label>
-            <label><input type="checkbox" disabled={!notificationsAvailable} checked={entry.notify.on_failure} onchange={(e) => setNotify(entry, "on_failure", e.currentTarget.checked)} /> si falla</label>
-            <label><input type="checkbox" disabled={!notificationsAvailable} checked={entry.notify.on_start} onchange={(e) => setNotify(entry, "on_start", e.currentTarget.checked)} /> al empezar</label>
+            <span class="muted">{t("wf.notify")}{#if !notificationsAvailable}<span class="soon">{t("settings.soon")}</span>{/if}</span>
+            <label><input type="checkbox" disabled={!notificationsAvailable} checked={entry.notify.on_success} onchange={(e) => setNotify(entry, "on_success", e.currentTarget.checked)} /> {t("wf.on_success")}</label>
+            <label><input type="checkbox" disabled={!notificationsAvailable} checked={entry.notify.on_failure} onchange={(e) => setNotify(entry, "on_failure", e.currentTarget.checked)} /> {t("wf.on_failure")}</label>
+            <label><input type="checkbox" disabled={!notificationsAvailable} checked={entry.notify.on_start} onchange={(e) => setNotify(entry, "on_start", e.currentTarget.checked)} /> {t("wf.on_start")}</label>
           </div>
         {/if}
       </div>

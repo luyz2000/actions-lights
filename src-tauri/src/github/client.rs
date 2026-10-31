@@ -1,4 +1,5 @@
 use super::types::{ApiRun, Job, JobsPage, Repo, RunsPage, User, Workflow, WorkflowsPage};
+use crate::i18n::{t, tf};
 use crate::model::{RunSnapshot, WatchedWorkflow};
 use crate::progress::StepCount;
 use bytes::Bytes;
@@ -26,20 +27,21 @@ pub enum ApiError {
 }
 
 impl ApiError {
-    /// Short Spanish message for cards and banners.
+    /// Short message for cards and banners, in the system language.
     pub fn message(&self) -> String {
         match self {
-            ApiError::Unauthorized => "Token inválido o caducado".into(),
-            ApiError::Sso { .. } => "Requiere autorizar el token para la organización (SSO)".into(),
-            ApiError::RateLimited { reset_at } => {
-                format!(
-                    "Límite de la API alcanzado, se reanuda a las {}",
-                    reset_at.with_timezone(&chrono::Local).format("%H:%M")
-                )
-            }
-            ApiError::NotFound => "No encontrado (¿repo privado sin acceso?)".into(),
-            ApiError::Http(code) => format!("Error de GitHub ({code})"),
-            ApiError::Network(_) => "Sin conexión con GitHub".into(),
+            ApiError::Unauthorized => t("api.unauthorized"),
+            ApiError::Sso { .. } => t("api.sso"),
+            ApiError::RateLimited { reset_at } => tf(
+                "api.rate_limited",
+                &[(
+                    "time",
+                    &reset_at.with_timezone(&chrono::Local).format("%H:%M"),
+                )],
+            ),
+            ApiError::NotFound => t("api.not_found"),
+            ApiError::Http(code) => tf("api.http", &[("code", code)]),
+            ApiError::Network(_) => t("api.network"),
         }
     }
 }
@@ -227,7 +229,7 @@ impl HttpClient {
     async fn get_json<T: DeserializeOwned>(&self, url: &Url) -> Result<T, ApiError> {
         let (body, _) = self.get_raw(url).await?;
         serde_json::from_slice(&body)
-            .map_err(|e| ApiError::Network(format!("respuesta inválida: {e}")))
+            .map_err(|e| ApiError::Network(format!("invalid response: {e}")))
     }
 
     fn runs_url(&self, w: &WatchedWorkflow, extra: &[(&str, &str)]) -> Url {
@@ -264,7 +266,7 @@ impl GithubApi for HttpClient {
         while let Some(url) = next {
             let (body, link) = self.get_raw(&url).await?;
             let page: Vec<Repo> = serde_json::from_slice(&body)
-                .map_err(|e| ApiError::Network(format!("respuesta inválida: {e}")))?;
+                .map_err(|e| ApiError::Network(format!("invalid response: {e}")))?;
             out.extend(page);
             next = link.and_then(|l| Url::parse(&l).ok());
         }

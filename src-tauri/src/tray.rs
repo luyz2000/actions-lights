@@ -1,3 +1,4 @@
+use crate::i18n::t;
 use crate::icon::{self, ICON_PX};
 use crate::model::Light;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -71,6 +72,7 @@ fn set_regular_app(app: &AppHandle, regular: bool) {
 pub fn open_settings(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("settings") {
         set_regular_app(app, true);
+        let _ = w.set_title(&t("settings.window_title"));
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
@@ -100,10 +102,10 @@ fn toggle_popover(app: &AppHandle) {
 }
 
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
-    let refresh = MenuItem::with_id(app, "refresh", "Actualizar ahora", true, None::<&str>)?;
-    let settings = MenuItem::with_id(app, "settings", "Repos y workflows…", true, None::<&str>)?;
-    let updates = MenuItem::with_id(app, "updates", "Buscar actualizaciones", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
+    let refresh = MenuItem::with_id(app, "refresh", t("tray.menu.refresh"), true, None::<&str>)?;
+    let settings = MenuItem::with_id(app, "settings", t("tray.menu.settings"), true, None::<&str>)?;
+    let updates = MenuItem::with_id(app, "updates", t("tray.menu.updates"), true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", t("tray.menu.quit"), true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&refresh, &settings, &updates, &quit])?;
 
     TrayIconBuilder::with_id(TRAY_ID)

@@ -2,6 +2,7 @@ use crate::app_state::AppCtx;
 use crate::auth::SecretStore;
 use crate::config;
 use crate::github::{GITHUB_API, GithubApi, HttpClient, Repo, Workflow};
+use crate::i18n::t;
 use crate::model::{AuthStatus, Config, DashboardState};
 use crate::tray;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -154,12 +155,18 @@ pub fn test_notification(app: AppHandle) {
     crate::notify::show(
         &app,
         crate::notify::Outgoing {
-            title: "✅ Notificación de prueba".into(),
-            body: "Haz clic aquí para abrir Actions Lights en GitHub".into(),
+            title: t("notify.test_title"),
+            body: t("notify.test_body"),
             sound: Some("Glass"),
             url: Some("https://github.com/luyz2000/actions-lights".into()),
         },
     );
+}
+
+/// The language the backend picked from the system, so the UI matches the tray.
+#[tauri::command]
+pub fn get_locale() -> &'static str {
+    crate::i18n::locale()
 }
 
 #[tauri::command]
@@ -180,8 +187,7 @@ pub async fn repo_from_folder(ctx: State<'_, AppCtx>, path: String) -> Result<Re
 #[tauri::command]
 pub async fn oauth_start(app: AppHandle) -> Result<crate::oauth::DeviceCode, String> {
     use crate::oauth::{self, GITHUB_WEB, PollResult};
-    let client_id =
-        oauth::client_id().ok_or("Esta versión no incluye inicio de sesión con GitHub")?;
+    let client_id = oauth::client_id().ok_or_else(|| t("oauth.unavailable"))?;
     let code = oauth::request_code(GITHUB_WEB, client_id).await?;
     let _ = app
         .opener()
@@ -197,7 +203,7 @@ pub async fn oauth_start(app: AppHandle) -> Result<crate::oauth::DeviceCode, Str
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
             if std::time::Instant::now() > deadline {
-                return fail("El código caducó, vuelve a intentarlo");
+                return fail(&t("oauth.expired"));
             }
             match oauth::poll_once(GITHUB_WEB, client_id, &device_code).await {
                 Ok(PollResult::Pending) => {}
@@ -212,8 +218,8 @@ pub async fn oauth_start(app: AppHandle) -> Result<crate::oauth::DeviceCode, Str
                     let _ = app.emit("auth-changed", status);
                     return;
                 }
-                Ok(PollResult::Denied) => return fail("Inicio de sesión cancelado"),
-                Ok(PollResult::Expired) => return fail("El código caducó, vuelve a intentarlo"),
+                Ok(PollResult::Denied) => return fail(&t("oauth.cancelled")),
+                Ok(PollResult::Expired) => return fail(&t("oauth.expired")),
                 Err(e) => return fail(&e),
             }
         }

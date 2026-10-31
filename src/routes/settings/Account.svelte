@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t, tSplit } from "$lib/i18n";
   import { api, onAuthChanged, onOauthFailed, type AuthStatus, type DeviceCode, type TokenSource } from "$lib/api";
 
   let { auth, onauth }: { auth: AuthStatus | null; onauth: (a: AuthStatus) => void } = $props();
@@ -46,20 +47,21 @@
   });
 
   const inUse = (s: TokenSource) => auth?.source === s;
+  const connectedAs = tSplit("account.connected_as", "login");
 </script>
 
 <div class="section">
   <header>
-    <h1>Cuenta de GitHub</h1>
-    <p class="muted">La app usa la primera cuenta que encuentra, en este orden.</p>
+    <h1>{t("account.title")}</h1>
+    <p class="muted">{t("account.subtitle")}</p>
   </header>
 
   {#if auth?.login}
     <div class="current">
-      Conectado como <b>@{auth.login}</b>
+      {connectedAs[0]}<b>@{auth.login}</b>{connectedAs[1]}
     </div>
   {:else if auth && auth.source === "none"}
-    <div class="current warn">Sin cuenta: solo puedes vigilar repos públicos y se actualiza cada 5 min.</div>
+    <div class="current warn">{t("account.no_account")}</div>
   {/if}
 
   <ol class="sources">
@@ -67,47 +69,47 @@
       <div class="head">
         <span class="step">1</span>
         <span class="label">GitHub CLI (<code>gh</code>)</span>
-        {#if inUse("gh")}<span class="pill use">En uso</span>{:else if auth?.gh}<span class="pill">Detectada</span>{:else}<span class="pill off">No detectada</span>{/if}
+        {#if inUse("gh")}<span class="pill use">{t("account.in_use")}</span>{:else if auth?.gh}<span class="pill">{t("account.detected")}</span>{:else}<span class="pill off">{t("account.not_detected")}</span>{/if}
       </div>
-      <p class="muted">Usa tu sesión de <code>gh auth login</code>. No necesitas configurar nada más.</p>
-      <div class="actions"><button class="btn" disabled={busy} onclick={recheck}>Volver a detectar</button></div>
+      <p class="muted">{@html t("account.gh_hint")}</p>
+      <div class="actions"><button class="btn" disabled={busy} onclick={recheck}>{t("account.redetect")}</button></div>
     </li>
 
     <li class:active={inUse("manual")}>
       <div class="head">
         <span class="step">2</span>
-        <span class="label">Token personal</span>
-        {#if inUse("manual")}<span class="pill use">En uso</span>{:else if auth?.manual}<span class="pill">Guardado</span>{/if}
+        <span class="label">{t("account.token_label")}</span>
+        {#if inUse("manual")}<span class="pill use">{t("account.in_use")}</span>{:else if auth?.manual}<span class="pill">{t("account.saved")}</span>{/if}
       </div>
-      <p class="muted">Token clásico con permiso <code>repo</code>, o fine-grained con <i>Actions: read</i>. Se guarda en el Llavero.</p>
+      <p class="muted">{@html t("account.token_hint")}</p>
       <div class="actions">
-        <input id="token" class="field grow" type="password" placeholder="ghp_… o github_pat_…" bind:value={token} />
-        <button class="btn primary" disabled={busy || !token.trim()} onclick={saveToken}>Guardar</button>
-        {#if auth?.manual}<button class="btn" disabled={busy} onclick={clearToken}>Borrar</button>{/if}
+        <input id="token" class="field grow" type="password" placeholder={t("account.token_placeholder")} bind:value={token} />
+        <button class="btn primary" disabled={busy || !token.trim()} onclick={saveToken}>{t("account.save")}</button>
+        {#if auth?.manual}<button class="btn" disabled={busy} onclick={clearToken}>{t("account.delete")}</button>{/if}
       </div>
     </li>
 
     <li class:active={inUse("oauth")}>
       <div class="head">
         <span class="step">3</span>
-        <span class="label">Iniciar sesión con GitHub</span>
-        {#if inUse("oauth")}<span class="pill use">En uso</span>{:else if auth?.oauth}<span class="pill">Conectada</span>{/if}
+        <span class="label">{t("account.oauth_label")}</span>
+        {#if inUse("oauth")}<span class="pill use">{t("account.in_use")}</span>{:else if auth?.oauth}<span class="pill">{t("account.connected")}</span>{/if}
       </div>
       {#if !auth?.oauth_available}
-        <p class="muted">No disponible en esta versión: falta el client id de la app OAuth al compilar.</p>
+        <p class="muted">{t("account.oauth_unavailable")}</p>
       {:else if device}
-        <p class="muted">Introduce este código en la página de GitHub que se abrió:</p>
+        <p class="muted">{t("account.enter_code")}</p>
         <div class="code-row">
           <code class="code">{device.user_code}</code>
-          <button class="btn" onclick={copyCode}>{copied ? "Copiado" : "Copiar"}</button>
-          <button class="btn" onclick={() => api.openUrl(device!.verification_uri)}>Abrir GitHub</button>
+          <button class="btn" onclick={copyCode}>{copied ? t("account.copied") : t("account.copy")}</button>
+          <button class="btn" onclick={() => api.openUrl(device!.verification_uri)}>{t("account.open_github")}</button>
         </div>
-        <p class="muted small">Esperando autorización…</p>
+        <p class="muted small">{t("account.waiting")}</p>
       {:else}
-        <p class="muted">Autoriza la app en el navegador, sin copiar tokens.</p>
+        <p class="muted">{t("account.oauth_hint")}</p>
         <div class="actions">
-          <button class="btn primary" disabled={busy} onclick={login}>Iniciar sesión</button>
-          {#if auth?.oauth}<button class="btn" disabled={busy} onclick={logout}>Cerrar sesión</button>{/if}
+          <button class="btn primary" disabled={busy} onclick={login}>{t("account.login")}</button>
+          {#if auth?.oauth}<button class="btn" disabled={busy} onclick={logout}>{t("account.logout")}</button>{/if}
         </div>
       {/if}
     </li>

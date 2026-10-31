@@ -1,3 +1,4 @@
+use crate::i18n::{t, tf};
 use std::path::{Path, PathBuf};
 
 /// "owner/repo" for any common GitHub remote URL form (https, ssh, scp-like).
@@ -67,11 +68,11 @@ fn git_dir(folder: &Path) -> Option<PathBuf> {
 
 /// Picks the GitHub repo of a local checkout, without needing the git binary.
 pub fn repo_from_folder(folder: &Path) -> Result<String, String> {
-    let dir = git_dir(folder).ok_or("La carpeta no es un repositorio git")?;
-    let config = std::fs::read_to_string(dir.join("config"))
-        .map_err(|_| "No se pudo leer la configuración de git")?;
-    let url = origin_url(&config).ok_or("El repositorio no tiene remotos configurados")?;
-    parse_github_remote(&url).ok_or_else(|| format!("El remoto no es de GitHub: {url}"))
+    let dir = git_dir(folder).ok_or_else(|| t("git.not_repo"))?;
+    let config =
+        std::fs::read_to_string(dir.join("config")).map_err(|_| t("git.config_unreadable"))?;
+    let url = origin_url(&config).ok_or_else(|| t("git.no_remote"))?;
+    parse_github_remote(&url).ok_or_else(|| tf("git.not_github", &[("url", &url)]))
 }
 
 #[cfg(test)]

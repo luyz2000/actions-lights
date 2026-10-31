@@ -7,10 +7,17 @@ export const ssr = false;
 export const prerender = true;
 
 import { dev } from "$app/environment";
+import { invoke } from "@tauri-apps/api/core";
+import { resolveLocale, setLocale } from "$lib/i18n";
 
-// In a plain browser during `npm run dev`, preview the UI against a fake backend.
 export const load = async () => {
-  if (dev && typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)) {
-    (await import("$lib/mock")).install();
+  if (typeof window === "undefined") return;
+  if ("__TAURI_INTERNALS__" in window) {
+    // Same language as the tray and notifications, picked by the backend.
+    setLocale(await invoke<string>("get_locale").catch(() => resolveLocale(navigator.languages)));
+  } else {
+    setLocale(resolveLocale(navigator.languages));
+    // In a plain browser during `npm run dev`, preview the UI against a fake backend.
+    if (dev) (await import("$lib/mock")).install();
   }
 };

@@ -1,3 +1,4 @@
+use crate::i18n::tf;
 const CAP: f32 = 0.95;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -38,8 +39,11 @@ pub fn step_label(steps: &StepCount) -> Option<String> {
     }
     let n = (steps.done + 1).min(steps.total);
     Some(match &steps.current {
-        Some(name) => format!("Paso {n}/{} · {name}", steps.total),
-        None => format!("Paso {n}/{}", steps.total),
+        Some(name) => tf(
+            "step.named",
+            &[("n", &n), ("total", &steps.total), ("name", name)],
+        ),
+        None => tf("step.plain", &[("n", &n), ("total", &steps.total)]),
     })
 }
 

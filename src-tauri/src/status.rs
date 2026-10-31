@@ -18,7 +18,7 @@ pub fn light_for(status: &str, conclusion: Option<&str>) -> Light {
 }
 
 pub fn label_for(status: &str) -> Option<String> {
-    (status == "waiting").then(|| "esperando aprobación".to_string())
+    (status == "waiting").then(|| crate::i18n::t("status.waiting_approval"))
 }
 
 fn rank(l: Light) -> u8 {

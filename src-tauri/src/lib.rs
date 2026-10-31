@@ -4,6 +4,7 @@ mod commands;
 mod config;
 mod git_remote;
 mod github;
+mod i18n;
 mod icon;
 mod interval;
 mod model;
@@ -61,6 +62,7 @@ pub fn run() {
             commands::oauth_start,
             commands::oauth_logout,
             commands::open_settings,
+            commands::get_locale,
             commands::quit,
             commands::get_update,
             commands::check_updates,
