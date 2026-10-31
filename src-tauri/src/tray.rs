@@ -105,6 +105,8 @@ fn show_popover(app: &AppHandle, w: &tauri::WebviewWindow) {
         panel.show_and_make_key();
         return;
     }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
     let _ = w.show();
     let _ = w.set_focus();
 }

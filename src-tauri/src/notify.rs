@@ -6,6 +6,7 @@ pub struct Outgoing {
     pub title: String,
     pub body: String,
     pub sound: Option<&'static str>,
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub url: Option<String>,
 }
 
@@ -13,9 +14,11 @@ pub struct Outgoing {
 /// gets no notifications at all (see docs/notificaciones-macos.md, kept out of git).
 pub const NOTIFICATIONS_ENABLED: bool = false;
 
-/// Run URLs waiting for a click, by notification id.
+/// Run URLs waiting for a click, by notification id. Only macOS reports clicks.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 static PENDING: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
 
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn remember(id: &str, url: &str) {
     PENDING
         .lock()
@@ -23,6 +26,7 @@ fn remember(id: &str, url: &str) {
         .push((id.to_string(), url.to_string()));
 }
 
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn take(id: &str) -> Option<String> {
     let mut pending = PENDING.lock().unwrap();
     let i = pending.iter().position(|(pid, _)| pid == id)?;
