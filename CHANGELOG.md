@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/luyz2000/actions-lights/compare/v1.6.0...v1.7.0) (2026-10-31)
+
+
+### Novedades
+
+* choose the app language in Settings › General, or keep following the system ([94d234c](https://github.com/luyz2000/actions-lights/commit/94d234ce3cebbd128efbafc3dbad59c2b669db11))
+
 ## [1.6.0](https://github.com/luyz2000/actions-lights/compare/v1.5.0...v1.6.0) (2026-10-31)
 
 
