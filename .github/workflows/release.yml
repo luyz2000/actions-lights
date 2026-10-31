@@ -2,7 +2,7 @@ name: Release
 
 # On every push to main, release-please keeps a "chore(main): release X.Y.Z" PR up to date
 # (version bump in all manifests + CHANGELOG from conventional commits). Merging that PR
-# creates the tag and the GitHub release; the build job then attaches the macOS app.
+# creates the tag and the GitHub release; the build jobs then attach the macOS and Linux apps.
 
 on:
   push:
@@ -82,3 +82,47 @@ jobs:
           gh release view "$TAG" --json body -q .body > notes.md
           sed "s/{{VERSION}}/${VERSION}/g" .github/release-install.md >> notes.md
           gh release edit "$TAG" --title "Actions Lights $TAG" --notes-file notes.md
+
+  # Runs after macOS: tauri-action merges latest.json by downloading, editing and
+  # re-uploading it, so two jobs writing it at once would drop one's platforms.
+  linux:
+    name: Linux (x86_64)
+    needs: [release-please, macos]
+    if: ${{ needs.release-please.outputs.created == 'true' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
+
+      - name: Dependencias de sistema de Tauri
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            librsvg2-dev libssl-dev libxdo-dev build-essential curl wget file patchelf
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Uploads the .deb and .AppImage with their signatures and adds the linux-x86_64
+      # entries to the latest.json the macOS job left on the release.
+      - name: Build deb y AppImage
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        with:
+          tagName: ${{ needs.release-please.outputs.tag }}
+          releaseDraft: false
+          includeUpdaterJson: true

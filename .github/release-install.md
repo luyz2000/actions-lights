@@ -12,3 +12,10 @@
 3. Si tienes `gh` con sesión iniciada no hay nada que configurar. Si no, conecta tu cuenta en **Ajustes → Cuenta**.
 
 Requiere macOS 10.13 o posterior.
+
+### Linux (x86_64)
+
+- **Debian/Ubuntu:** `sudo apt install ./Actions.Lights_{{VERSION}}_amd64.deb`
+- **Otras distribuciones:** descarga `Actions.Lights_{{VERSION}}_amd64.AppImage`, dale permiso de ejecución (`chmod +x`) y ábrelo.
+
+El estado se abre desde el menú del icono (**Ver estado**). En GNOME hace falta la extensión *AppIndicator and KStatusNotifierItem Support* para ver el icono.
