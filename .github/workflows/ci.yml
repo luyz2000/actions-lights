@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/windows]
   pull_request:
 
 concurrency:
@@ -53,3 +53,56 @@ jobs:
       - name: Tests de Rust
         working-directory: src-tauri
         run: cargo test --lib
+
+  windows:
+    name: Lint y tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Tipos (svelte-check)
+        run: npm run check
+
+      - name: Tests de frontend
+        run: npx vitest run
+
+      - name: Build del frontend
+        run: npm run build
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests de Rust
+        working-directory: src-tauri
+        run: cargo test --lib
+
+      # TEMP: checks the NSIS bundling before it reaches a release; the installer is kept
+      # as a run artifact so it can be tried on a real Windows machine.
+      - name: Bundle (temporal)
+        shell: bash
+        run: |
+          npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+          ls -la src-tauri/target/release/bundle/nsis/
+
+      - name: Subir instalador (temporal)
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-setup
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
