@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/luyz2000/actions-lights/compare/v1.8.0...v1.9.0) (2026-10-31)
+
+
+### Novedades
+
+* run on Windows (NSIS installer), with the status panel above the taskbar tray ([3148e7d](https://github.com/luyz2000/actions-lights/commit/3148e7d0588870dc969d36f53d47cc70d747f0ce))
+
 ## [1.8.0](https://github.com/luyz2000/actions-lights/compare/v1.7.0...v1.8.0) (2026-10-31)
 
 
