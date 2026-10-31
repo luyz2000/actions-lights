@@ -17,4 +17,6 @@ La app aún no está firmada con un certificado de Apple. La primera vez, ábrel
 xattr -cr "/Applications/Actions Lights.app"
 ```
 
+En Windows (x86_64) ejecuta el `-setup.exe` del mismo release. No está firmado: si SmartScreen avisa, pulsa **Más información → Ejecutar de todas formas**.
+
 Si tienes `gh` con sesión iniciada no hay nada que configurar. Si no, ve a **Ajustes → Cuenta**. Un token personal necesita el permiso `repo` (clásico) o *Actions: read* (fine-grained).

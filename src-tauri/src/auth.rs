@@ -62,10 +62,16 @@ pub fn gh_candidates(path_env: Option<&str>) -> Vec<PathBuf> {
 
 pub fn gh_token(candidates: &[PathBuf]) -> Option<String> {
     let bin = candidates.iter().find(|p| p.is_file())?;
-    let out = Command::new(bin)
-        .args(["auth", "token", "--hostname", "github.com"])
-        .output()
-        .ok()?;
+    let mut cmd = Command::new(bin);
+    cmd.args(["auth", "token", "--hostname", "github.com"]);
+    // A GUI app spawning a console program would flash a console window on Windows.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let out = cmd.output().ok()?;
     if !out.status.success() {
         return None;
     }
@@ -143,6 +149,8 @@ mod tests {
         );
     }
 
+    // PATH uses ':' and the binary has no extension only on Unix.
+    #[cfg(unix)]
     #[test]
     fn candidates_order_and_dedupe() {
         let c = gh_candidates(Some("/usr/local/bin:/x"));

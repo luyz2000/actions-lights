@@ -52,8 +52,55 @@ pub fn set_icon(app: &AppHandle, light: Light, progress: Option<f32>, idle: bool
 pub fn set_text(app: &AppHandle, title: Option<&str>, tooltip: &str) {
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
         let _ = tray.set_title(Some(title.unwrap_or("")));
+        // Windows drops whatever passes its limit, possibly mid-character.
+        #[cfg(target_os = "windows")]
+        let tooltip =
+            &crate::tray_text::fit_tooltip(tooltip, crate::tray_text::WINDOWS_TOOLTIP_MAX);
         let _ = tray.set_tooltip(Some(tooltip));
     }
+}
+
+/// Top-left corner that keeps a `size` window inside `area`, moving it as little as possible.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn clamp_into(
+    pos: (i32, i32),
+    size: (u32, u32),
+    area_pos: (i32, i32),
+    area_size: (u32, u32),
+) -> (i32, i32) {
+    let axis = |p: i32, len: u32, start: i32, avail: u32| {
+        p.min(start + avail as i32 - len as i32).max(start)
+    };
+    (
+        axis(pos.0, size.0, area_pos.0, area_size.0),
+        axis(pos.1, size.1, area_pos.1, area_size.1),
+    )
+}
+
+/// Windows: the tray icon sits inside the taskbar, so pull the popover into the monitor's
+/// work area (above a bottom taskbar, beside a side one) instead of covering the taskbar.
+#[cfg(target_os = "windows")]
+fn keep_in_work_area(w: &tauri::WebviewWindow) {
+    let (Ok(pos), Ok(size)) = (w.outer_position(), w.outer_size()) else {
+        return;
+    };
+    let cx = pos.x as f64 + size.width as f64 / 2.0;
+    let cy = pos.y as f64 + size.height as f64 / 2.0;
+    let monitor = match w.monitor_from_point(cx, cy) {
+        Ok(Some(m)) => Some(m),
+        _ => w.current_monitor().ok().flatten(),
+    };
+    let Some(monitor) = monitor else {
+        return;
+    };
+    let area = monitor.work_area();
+    let (x, y) = clamp_into(
+        (pos.x, pos.y),
+        (size.width, size.height),
+        (area.position.x, area.position.y),
+        (area.size.width, area.size.height),
+    );
+    let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
 }
 
 /// While settings is open the app behaves like a regular one (Dock icon, Cmd+Tab), so
@@ -91,6 +138,8 @@ fn toggle_popover(app: &AppHandle) {
         return;
     }
     let _ = w.move_window(Position::TrayCenter);
+    #[cfg(target_os = "windows")]
+    keep_in_work_area(&w);
     // Showing the panel without activating the app keeps it over fullscreen apps.
     #[cfg(target_os = "macos")]
     if let Ok(panel) = tauri_nspanel::ManagerExt::get_webview_panel(app, "popover") {
@@ -196,4 +245,34 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn popover_inside_area_stays_put() {
+        assert_eq!(
+            clamp_into((100, 100), (360, 480), (0, 0), (1920, 1040)),
+            (100, 100)
+        );
+    }
+
+    #[test]
+    fn popover_over_bottom_taskbar_moves_up() {
+        // Tray icon at y=1050 inside a 40px taskbar; the work area ends at 1040.
+        assert_eq!(
+            clamp_into((1700, 600), (360, 480), (0, 0), (1920, 1040)),
+            (1560, 560)
+        );
+    }
+
+    #[test]
+    fn popover_beside_left_taskbar_moves_right() {
+        assert_eq!(
+            clamp_into((-100, 500), (360, 480), (48, 0), (1872, 1080)),
+            (48, 500)
+        );
+    }
 }
