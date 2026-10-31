@@ -1,6 +1,8 @@
+<p align="center"><img src="logo.png" width="128" alt="Actions Lights"></p>
+
 # Actions Lights
 
-El estado de tus workflows de GitHub Actions en la barra de menús de macOS. Mergeas a tu rama de release, sigues trabajando, y la barra te avisa cuando el deploy termina o falla.
+El estado de tus workflows de GitHub Actions en la barra de menús de macOS, o en la bandeja del sistema de Linux y Windows. Mergeas a tu rama de release, sigues trabajando, y la barra te avisa cuando el deploy termina o falla.
 
 - **Semáforo en la barra:** rojo si algo falló, amarillo mientras corre (con anillo de progreso), verde si todo terminó bien.
 - **Panel al hacer clic:** workflows agrupados por repo, paso en curso, tiempo frente al habitual y el paso donde falló. Un clic abre el run.
