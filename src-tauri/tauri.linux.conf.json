@@ -4,13 +4,6 @@
     "targets": [
       "deb",
       "appimage"
-    ],
-    "linux": {
-      "deb": {
-        "depends": [
-          "libayatana-appindicator3-1"
-        ]
-      }
-    }
+    ]
   }
 }

@@ -102,6 +102,9 @@ jobs:
       # TEMP: checks the deb/AppImage bundling before it reaches a release.
       - name: Bundle (temporal)
         run: |
-          npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+          npx tauri signer generate --ci -p "" -w "$RUNNER_TEMP/throwaway.key"
+          export TAURI_SIGNING_PRIVATE_KEY="$(cat "$RUNNER_TEMP/throwaway.key")"
+          export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
+          npx tauri build
           ls -la src-tauri/target/release/bundle/*/
           dpkg-deb -I src-tauri/target/release/bundle/deb/*.deb
