@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/luyz2000/actions-lights/compare/v1.9.0...v1.9.1) (2026-11-02)
+
+
+### Correcciones
+
+* only register the login item from an app bundle, and retry soon after GitHub was unreachable ([dbe24f5](https://github.com/luyz2000/actions-lights/commit/dbe24f542149e9aedbcb5d22b60399089403421a))
+
 ## [1.9.0](https://github.com/luyz2000/actions-lights/compare/v1.8.0...v1.9.0) (2026-10-31)
 
 
