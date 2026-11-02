@@ -3,6 +3,8 @@ name = "actions-lights"
 version = "1.9.1"
 description = "Menu bar app showing GitHub Actions workflow status"
 authors = ["luyz2000"]
+license = "MIT"
+repository = "https://github.com/luyz2000/actions-lights"
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

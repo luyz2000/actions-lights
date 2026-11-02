@@ -53,7 +53,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": true,
+    "copyright": "Copyright © 2026 luyz2000. MIT License."
   },
   "plugins": {
     "updater": {
