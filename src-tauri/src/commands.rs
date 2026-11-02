@@ -17,6 +17,11 @@ pub fn apply_autostart(app: &AppHandle, enabled: bool) {
     let launcher = app.autolaunch();
     #[cfg(target_os = "macos")]
     {
+        // SMAppService registers whatever is running: a bare release binary would become
+        // a login item that macOS opens in Terminal at every login.
+        if !crate::bundle::running_from_app() {
+            return;
+        }
         // The plugin's LaunchAgent points at the bare binary, so Login Items shows a
         // generic Unix executable. Drop any legacy agent and register the .app itself.
         if launcher.is_enabled().unwrap_or(false) {

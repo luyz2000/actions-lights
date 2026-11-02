@@ -45,6 +45,8 @@ pub struct CycleOutput {
     pub min_running_progress: Option<f32>,
     pub auth_error: Option<ApiError>,
     pub requests: u32,
+    /// Some request couldn't reach GitHub at all (no network yet, DNS, timeout).
+    pub offline: bool,
 }
 
 fn empty_card(w: &WatchedWorkflow) -> Card {
@@ -83,6 +85,7 @@ pub async fn run_cycle<A: GithubApi>(
     let mut requests = 0u32;
     let mut running_progress: Vec<f32> = Vec::new();
     let mut any_running = false;
+    let mut offline = false;
 
     for w in &cfg.watched {
         let key = w.key();
@@ -95,6 +98,7 @@ pub async fn run_cycle<A: GithubApi>(
                 {
                     auth_error = Some(e.clone());
                 }
+                offline |= matches!(e, ApiError::Network(_));
                 card.error = Some(e.message());
             }
             Ok(None) => {}
@@ -177,6 +181,7 @@ pub async fn run_cycle<A: GithubApi>(
         min_running_progress: running_progress.into_iter().reduce(f32::min),
         auth_error,
         requests,
+        offline,
     }
 }
 
@@ -281,6 +286,7 @@ pub fn start(app: tauri::AppHandle) {
         let mut st = PollerState::new();
         let mut next_due = SystemTime::now();
         let mut retried_auth = false;
+        let mut offline_cycles = 0u32;
         loop {
             tokio::select! {
                 _ = ctx.wake.notified() => {}
@@ -310,6 +316,14 @@ pub fn start(app: tauri::AppHandle) {
             }
             // Later recovery (e.g. `gh auth login` after a revoke): pick it up next cycle.
             if needs_auth_refresh(out.auth_error.as_ref(), ctx.api.has_token()) {
+                ctx.refresh_auth().await;
+            }
+
+            // Back online after e.g. logging in before the Wi-Fi was up: the login lookup
+            // at launch failed too, so resolve the account again.
+            if out.offline {
+                offline_cycles += 1;
+            } else if std::mem::take(&mut offline_cycles) > 0 {
                 ctx.refresh_auth().await;
             }
 
@@ -383,7 +397,11 @@ pub fn start(app: tauri::AppHandle) {
                 );
             }
 
-            next_due = SystemTime::now() + wait;
+            next_due = SystemTime::now()
+                + match offline_cycles {
+                    0 => wait,
+                    n => crate::interval::after_network_error(n, wait),
+                };
         }
     });
 }
@@ -604,6 +622,20 @@ mod tests {
         api.set_run(&a, Err(ApiError::Unauthorized));
         let out = run_cycle(&api, &cfg(vec![a]), &mut PollerState::new(), now).await;
         assert_eq!(out.auth_error, Some(ApiError::Unauthorized));
+    }
+
+    #[tokio::test]
+    async fn a_cycle_that_cannot_reach_github_is_offline() {
+        let now = Utc::now();
+        let api = FakeApi::default();
+        let (a, b) = (wf("acme/api", 1), wf("acme/web", 2));
+        api.set_run(&a, Err(ApiError::Network("dns error".into())));
+        api.set_run(&b, Err(ApiError::NotFound));
+        let out = run_cycle(&api, &cfg(vec![a.clone()]), &mut PollerState::new(), now).await;
+        assert!(out.offline);
+        // Other errors are GitHub answering: the normal cadence applies.
+        let out = run_cycle(&api, &cfg(vec![b]), &mut PollerState::new(), now).await;
+        assert!(!out.offline);
     }
 
     #[tokio::test]

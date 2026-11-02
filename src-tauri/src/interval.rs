@@ -26,12 +26,29 @@ pub fn next_interval(
     Duration::from_secs(secs)
 }
 
+/// Wait after `failures` cycles in a row couldn't reach GitHub (just logged in, Wi-Fi
+/// coming back): retry soon, doubling up to the normal cadence.
+pub fn after_network_error(failures: u32, normal: Duration) -> Duration {
+    let backoff = 5u64.saturating_mul(1 << failures.clamp(1, 16).saturating_sub(1));
+    Duration::from_secs(backoff).min(normal)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn none() -> RateInfo {
         RateInfo::default()
+    }
+
+    #[test]
+    fn retries_soon_after_network_failures_then_backs_off() {
+        let normal = Duration::from_secs(60);
+        let secs = |n| after_network_error(n, normal).as_secs();
+        assert_eq!([secs(1), secs(2), secs(3), secs(4)], [5, 10, 20, 40]);
+        assert_eq!(secs(5), 60);
+        assert_eq!(secs(30), 60);
+        assert_eq!(after_network_error(1, Duration::from_secs(3)).as_secs(), 3);
     }
 
     #[test]

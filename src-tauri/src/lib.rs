@@ -1,5 +1,7 @@
 mod app_state;
 mod auth;
+#[cfg(target_os = "macos")]
+mod bundle;
 mod commands;
 mod config;
 mod git_remote;

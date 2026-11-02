@@ -156,20 +156,14 @@ mod mac {
         }
     );
 
-    /// UNUserNotificationCenter aborts outside an app bundle (e.g. `cargo run`).
-    fn in_bundle() -> bool {
-        std::env::current_exe()
-            .map(|p| p.to_string_lossy().contains(".app/Contents/MacOS/"))
-            .unwrap_or(false)
-    }
-
     /// Native path only once the system allowed it; otherwise the plugin is used.
     pub fn ready() -> bool {
         APP.get().is_some() && matches!(*ANSWER.lock().unwrap(), Some(Ok(())))
     }
 
     pub fn init(app: &AppHandle) {
-        if !in_bundle() || APP.set(app.clone()).is_err() {
+        // UNUserNotificationCenter aborts outside an app bundle (e.g. `cargo run`).
+        if !crate::bundle::running_from_app() || APP.set(app.clone()).is_err() {
             return;
         }
         let center = UNUserNotificationCenter::currentNotificationCenter();
