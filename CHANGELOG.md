@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.2](https://github.com/luyz2000/actions-lights/compare/v1.9.1...v1.9.2) (2026-11-13)
+
+
+### Correcciones
+
+* drop untracked workflows from the panel right away and warn when a watched workflow no longer exists ([8fcc083](https://github.com/luyz2000/actions-lights/commit/8fcc083a367e07ce75a52ef2fbe47ff01875be68))
+
 ## [1.9.1](https://github.com/luyz2000/actions-lights/compare/v1.9.0...v1.9.1) (2026-11-02)
 
 
