@@ -76,7 +76,18 @@ pub fn save_config(app: AppHandle, ctx: State<'_, AppCtx>, cfg: Config) -> Resul
     if relabel {
         crate::i18n::set_choice(cfg.language.as_deref());
     }
+    // Stop showing workflows that are no longer watched now, not after the next poll.
+    let keys: std::collections::HashSet<String> = cfg.watched.iter().map(|w| w.key()).collect();
     *ctx.cfg.write().unwrap() = cfg;
+    let pruned = {
+        let mut dash = ctx.dashboard.write().unwrap();
+        for g in &mut dash.groups {
+            g.cards.retain(|c| keys.contains(&c.key));
+        }
+        dash.groups.retain(|g| !g.cards.is_empty());
+        dash.clone()
+    };
+    let _ = app.emit("dashboard", &pruned);
     if relabel {
         tray::relabel(&app);
         let _ = app.emit("locale-changed", crate::i18n::locale());

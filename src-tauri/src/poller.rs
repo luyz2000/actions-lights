@@ -47,6 +47,8 @@ pub struct CycleOutput {
     pub requests: u32,
     /// Some request couldn't reach GitHub at all (no network yet, DNS, timeout).
     pub offline: bool,
+    /// Names of watched workflows GitHub says no longer exist (or are out of reach).
+    pub gone: Vec<String>,
 }
 
 fn empty_card(w: &WatchedWorkflow) -> Card {
@@ -86,6 +88,7 @@ pub async fn run_cycle<A: GithubApi>(
     let mut running_progress: Vec<f32> = Vec::new();
     let mut any_running = false;
     let mut offline = false;
+    let mut gone = Vec::new();
 
     for w in &cfg.watched {
         let key = w.key();
@@ -99,7 +102,13 @@ pub async fn run_cycle<A: GithubApi>(
                     auth_error = Some(e.clone());
                 }
                 offline |= matches!(e, ApiError::Network(_));
-                card.error = Some(e.message());
+                card.error = Some(match e {
+                    ApiError::NotFound => {
+                        gone.push(w.workflow_name.clone());
+                        t("api.workflow_gone")
+                    }
+                    _ => e.message(),
+                });
             }
             Ok(None) => {}
             Ok(Some(run)) => {
@@ -182,6 +191,7 @@ pub async fn run_cycle<A: GithubApi>(
         auth_error,
         requests,
         offline,
+        gone,
     }
 }
 
@@ -239,6 +249,7 @@ pub struct Banner {
 fn banner_for(
     auth_error: Option<&ApiError>,
     has_token: bool,
+    gone: &[String],
     stretched_to: Option<std::time::Duration>,
 ) -> Banner {
     let text = |key: &str| Some(t(key));
@@ -253,6 +264,10 @@ fn banner_for(
         },
         _ if !has_token => Banner {
             text: text("banner.no_token"),
+            url: None,
+        },
+        _ if !gone.is_empty() => Banner {
+            text: Some(tf("banner.gone", &[("names", &gone.join(", "))])),
             url: None,
         },
         _ => match stretched_to {
@@ -302,6 +317,14 @@ pub fn start(app: tauri::AppHandle) {
                 next_due = SystemTime::now() + Duration::from_secs(15);
                 continue;
             };
+
+            // Settings changed what is watched while this cycle was in flight: its result
+            // would bring back a workflow the user just stopped tracking.
+            if ctx.cfg.read().unwrap().watched != cfg.watched {
+                next_due = SystemTime::now();
+                ctx.wake.notify_one();
+                continue;
+            }
 
             // A stale gh token: re-resolve once and poll again right away.
             if out.auth_error == Some(ApiError::Unauthorized) && !retried_auth {
@@ -365,6 +388,7 @@ pub fn start(app: tauri::AppHandle) {
             let banner = banner_for(
                 out.auth_error.as_ref(),
                 has_token,
+                &out.gone,
                 (wait > base).then_some(wait),
             );
 
@@ -615,6 +639,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_deleted_workflow_is_reported_as_gone() {
+        let now = Utc::now();
+        let api = FakeApi::default();
+        let (a, b) = (wf("acme/api", 1), wf("acme/api", 2));
+        api.set_run(&a, Err(ApiError::NotFound));
+        api.set_run(&b, Err(ApiError::Http(500)));
+        let out = run_cycle(&api, &cfg(vec![a, b]), &mut PollerState::new(), now).await;
+        assert_eq!(out.gone, vec!["WF1".to_string()]);
+        assert_eq!(
+            out.groups[0].cards[0].error.as_deref(),
+            Some("Ya no existe (workflow borrado o sin acceso)")
+        );
+        let banner = banner_for(None, true, &out.gone, None);
+        assert!(banner.text.unwrap().starts_with("WF1 ya no existe"));
+    }
+
+    #[tokio::test]
     async fn unauthorized_surfaces_auth_error() {
         let now = Utc::now();
         let api = FakeApi::default();
@@ -674,7 +715,7 @@ mod tests {
         let sso = ApiError::Sso {
             url: Some("https://github.com/orgs/acme/sso?x=1".into()),
         };
-        let b = banner_for(Some(&sso), true, None);
+        let b = banner_for(Some(&sso), true, &[], None);
         assert_eq!(
             b.url.as_deref(),
             Some("https://github.com/orgs/acme/sso?x=1")
@@ -684,7 +725,7 @@ mod tests {
 
     #[test]
     fn stretched_interval_explains_rate_limit() {
-        let b = banner_for(None, true, Some(std::time::Duration::from_secs(300)));
+        let b = banner_for(None, true, &[], Some(std::time::Duration::from_secs(300)));
         assert_eq!(
             b.text.as_deref(),
             Some("Límite de la API bajo: actualizando cada 5 min")
@@ -694,7 +735,7 @@ mod tests {
 
     #[test]
     fn healthy_has_no_banner() {
-        assert_eq!(banner_for(None, true, None), Banner::default());
+        assert_eq!(banner_for(None, true, &[], None), Banner::default());
     }
 
     #[test]
