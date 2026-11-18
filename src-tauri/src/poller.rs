@@ -25,7 +25,12 @@ pub struct PollerState {
     /// ((run_id, attempt), failed step) so a failed run's jobs are fetched once
     failures: HashMap<String, ((u64, u32), Option<String>)>,
     first_poll: bool,
+    /// Workflows dropped because they no longer exist, and until when to say so.
+    removed: Option<(Vec<String>, DateTime<Utc>)>,
 }
+
+/// How long the "no longer exists" notice stays in the banner.
+const REMOVED_NOTICE_SECS: i64 = 600;
 
 impl PollerState {
     pub fn new() -> Self {
@@ -34,6 +39,7 @@ impl PollerState {
             medians: HashMap::new(),
             failures: HashMap::new(),
             first_poll: true,
+            removed: None,
         }
     }
 }
@@ -47,8 +53,8 @@ pub struct CycleOutput {
     pub requests: u32,
     /// Some request couldn't reach GitHub at all (no network yet, DNS, timeout).
     pub offline: bool,
-    /// Names of watched workflows GitHub says no longer exist (or are out of reach).
-    pub gone: Vec<String>,
+    /// Watched workflows deleted on GitHub (the repo still answers): the loop stops watching them.
+    pub gone: Vec<WatchedWorkflow>,
 }
 
 fn empty_card(w: &WatchedWorkflow) -> Card {
@@ -102,11 +108,17 @@ pub async fn run_cycle<A: GithubApi>(
                     auth_error = Some(e.clone());
                 }
                 offline |= matches!(e, ApiError::Network(_));
-                card.error = Some(match e {
-                    ApiError::NotFound => {
-                        gone.push(w.workflow_name.clone());
-                        t("api.workflow_gone")
+                if e == ApiError::NotFound {
+                    // A 404 also means "no access": only a repo that still answers proves
+                    // the workflow itself is gone.
+                    requests += 1;
+                    if api.get_repo(&w.repo).await.is_ok() {
+                        gone.push(w.clone());
+                        continue;
                     }
+                }
+                card.error = Some(match e {
+                    ApiError::NotFound => t("api.workflow_gone"),
                     _ => e.message(),
                 });
             }
@@ -326,6 +338,23 @@ pub fn start(app: tauri::AppHandle) {
                 continue;
             }
 
+            // Deleted on GitHub: stop watching for good and tell the user for a while.
+            if !out.gone.is_empty() {
+                let keys: Vec<String> = out.gone.iter().map(|w| w.key()).collect();
+                let kept = {
+                    let mut live = ctx.cfg.write().unwrap();
+                    live.watched.retain(|w| !keys.contains(&w.key()));
+                    live.clone()
+                };
+                let _ = crate::config::save(&ctx.config_dir, &kept);
+                let mut names = match st.removed.take() {
+                    Some((names, until)) if until > now => names,
+                    _ => Vec::new(),
+                };
+                names.extend(out.gone.iter().map(|w| w.workflow_name.clone()));
+                st.removed = Some((names, now + chrono::Duration::seconds(REMOVED_NOTICE_SECS)));
+            }
+
             // A stale gh token: re-resolve once and poll again right away.
             if out.auth_error == Some(ApiError::Unauthorized) && !retried_auth {
                 retried_auth = true;
@@ -388,7 +417,10 @@ pub fn start(app: tauri::AppHandle) {
             let banner = banner_for(
                 out.auth_error.as_ref(),
                 has_token,
-                &out.gone,
+                st.removed
+                    .as_ref()
+                    .filter(|(_, until)| *until > now)
+                    .map_or(&[][..], |(names, _)| names.as_slice()),
                 (wait > base).then_some(wait),
             );
 
@@ -445,6 +477,7 @@ mod tests {
         jobs: Mutex<HashMap<u64, Vec<Job>>>,
         durations: Vec<u64>,
         duration_calls: AtomicU32,
+        repo_ok: bool,
     }
 
     impl FakeApi {
@@ -460,8 +493,15 @@ mod tests {
         async fn list_repos(&self) -> Result<Vec<Repo>, ApiError> {
             Ok(vec![])
         }
-        async fn get_repo(&self, _: &str) -> Result<Repo, ApiError> {
-            Err(ApiError::NotFound)
+        async fn get_repo(&self, full: &str) -> Result<Repo, ApiError> {
+            match self.repo_ok {
+                true => Ok(Repo {
+                    full_name: full.into(),
+                    private: false,
+                    default_branch: "main".into(),
+                }),
+                false => Err(ApiError::NotFound),
+            }
         }
         async fn list_workflows(&self, _: &str) -> Result<Vec<Workflow>, ApiError> {
             Ok(vec![])
@@ -639,20 +679,39 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_deleted_workflow_is_reported_as_gone() {
+    async fn a_deleted_workflow_is_dropped_when_its_repo_still_answers() {
         let now = Utc::now();
-        let api = FakeApi::default();
+        let api = FakeApi {
+            repo_ok: true,
+            ..Default::default()
+        };
         let (a, b) = (wf("acme/api", 1), wf("acme/api", 2));
         api.set_run(&a, Err(ApiError::NotFound));
-        api.set_run(&b, Err(ApiError::Http(500)));
-        let out = run_cycle(&api, &cfg(vec![a, b]), &mut PollerState::new(), now).await;
-        assert_eq!(out.gone, vec!["WF1".to_string()]);
+        api.set_run(&b, Ok(Some(run(7, "completed", Some("success"), now))));
+        let out = run_cycle(&api, &cfg(vec![a.clone(), b]), &mut PollerState::new(), now).await;
+        assert_eq!(out.gone, vec![a]);
+        assert_eq!(out.groups[0].cards.len(), 1);
+        assert_eq!(out.groups[0].cards[0].workflow_name, "WF2");
+    }
+
+    #[tokio::test]
+    async fn a_404_with_an_unreachable_repo_is_kept_with_a_message() {
+        let now = Utc::now();
+        let api = FakeApi::default();
+        let a = wf("acme/api", 1);
+        api.set_run(&a, Err(ApiError::NotFound));
+        let out = run_cycle(&api, &cfg(vec![a]), &mut PollerState::new(), now).await;
+        assert!(out.gone.is_empty());
         assert_eq!(
             out.groups[0].cards[0].error.as_deref(),
             Some("Ya no existe (workflow borrado o sin acceso)")
         );
-        let banner = banner_for(None, true, &out.gone, None);
-        assert!(banner.text.unwrap().starts_with("WF1 ya no existe"));
+    }
+
+    #[test]
+    fn removal_notice_goes_in_the_banner() {
+        let banner = banner_for(None, true, &["Staging".to_string()], None);
+        assert!(banner.text.unwrap().starts_with("Staging ya no existe"));
     }
 
     #[tokio::test]

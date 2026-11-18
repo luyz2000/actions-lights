@@ -131,6 +131,7 @@
   // launch (gh login finished, network came up) every time it's brought forward.
   async function refresh() {
     auth = await api.authStatus();
+    cfg = await api.getConfig(); // the poller may have dropped a deleted workflow
     if (reposError || repos.length === 0) await loadRepos();
   }
 

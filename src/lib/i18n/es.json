@@ -31,7 +31,7 @@
   "banner.unauthorized": "Sesión de GitHub inválida: revisa `gh auth login` o el token en Repos y workflows…",
   "banner.no_token": "Sin token: solo repos públicos, actualizando cada 5 min",
   "banner.rate_low": "Límite de la API bajo: actualizando cada {n} min",
-  "banner.gone": "{names} ya no existe en GitHub (o se perdió el acceso): deja de seguirlo en Ajustes",
+  "banner.gone": "{names} ya no existe en GitHub: se dejó de seguir",
   "api.unauthorized": "Token inválido o caducado",
   "api.sso": "Requiere autorizar el token para la organización (SSO)",
   "api.rate_limited": "Límite de la API alcanzado, se reanuda a las {time}",

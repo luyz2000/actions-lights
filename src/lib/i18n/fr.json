@@ -31,7 +31,7 @@
   "banner.unauthorized": "Session GitHub invalide : vérifiez `gh auth login` ou le jeton dans Dépôts et workflows…",
   "banner.no_token": "Sans jeton : dépôts publics uniquement, actualisation toutes les 5 min",
   "banner.rate_low": "Limite de l’API basse : actualisation toutes les {n} min",
-  "banner.gone": "{names} n’existe plus sur GitHub (ou l’accès a été perdu) : arrêtez de le suivre dans Réglages",
+  "banner.gone": "{names} n’existe plus sur GitHub : le suivi a été arrêté",
   "api.unauthorized": "Jeton invalide ou expiré",
   "api.sso": "Le jeton doit être autorisé pour l’organisation (SSO)",
   "api.rate_limited": "Limite de l’API atteinte, reprise à {time}",
