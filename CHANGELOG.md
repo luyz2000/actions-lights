@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.3](https://github.com/luyz2000/actions-lights/compare/v1.9.2...v1.9.3) (2026-11-18)
+
+
+### Correcciones
+
+* stop watching workflows deleted on GitHub and say so in the banner ([2e785bd](https://github.com/luyz2000/actions-lights/commit/2e785bda3f4eab0799d1b8ea8c71395bd4c5ba58))
+
 ## [1.9.2](https://github.com/luyz2000/actions-lights/compare/v1.9.1...v1.9.2) (2026-11-13)
 
 
